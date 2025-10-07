@@ -77,7 +77,7 @@ def train(model, train_loader, val_loader, test_loader, criterion, optimizer, sc
 
     # Training loop
     print("\nStarting training...\n")
-    best_loss = 0.0
+    best_loss = float("inf")
     best_acc = 0.0
 
     for epoch in range(NUM_EPOCHS):
@@ -119,7 +119,7 @@ def train(model, train_loader, val_loader, test_loader, criterion, optimizer, sc
     # Load and evaluate best model
     print("\nLoading best model for final evaluation...")
     checkpoint = torch.load('model_new_head.pth')
-    model.load_state_dict(checkpoint['model_state_dict'])
+    model.load_state_dict(checkpoint['model_state_dict'], strict=False)
     final_loss, final_acc = evaluate(model, test_loader, criterion, device)
     print(f"Final Test Accuracy: {final_acc:.2f}%")
 
@@ -331,6 +331,13 @@ def finetune_original(device, name="finetune_original", lr=1e-4, batch_size=64, 
     optimizer = optim.AdamW(original_model.parameters(), lr=lr, weight_decay=0.01)
     scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)
 
+    for param in original_model.parameters():
+        param.requires_grad = False
+
+    for param in original_model.heads.parameters():
+        param.requires_grad = True
+
+
     # Training
     training_data = train(
         original_model,
@@ -378,6 +385,11 @@ def finetune_bottleneck(bottleneck_path, device, name="finetune_original", lr=1e
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.AdamW(original_model.parameters(), lr=lr, weight_decay=0.01)
     scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs, eta_min=3e-5)
+
+    original_model.freeze_except_bottleneck()
+
+    for param in original_model.heads.parameters():
+        param.requires_grad = True
 
     # Training
     training_data = train(
@@ -685,8 +697,10 @@ if __name__ == '__main__':
     # main()
     # train_bottleneck_unsupervised("bottleneck_unsupervised_P16", "activations10k_16.pt", device, epochs=100)
 
-    # finetune_original(device, name="original_v1", lr=1e-4, batch_size=64, epochs=10, num_classes=100)
+
     #
     #
-    finetune_bottleneck("models/bottleneck_unsupervised_P16_384.pth", name="bottleneckv2_P16",  device=device,
-                        lr=1e-4, batch_size=64, epochs=10, num_classes=100)
+    finetune_bottleneck("models/bottleneck_unsupervised_P16_384.pth", name="bottleneckv2_P16_finetune_heads",  device=device,
+                        lr=5e-3, batch_size=64, epochs=10, num_classes=100)
+
+    finetune_original(device, name="original_v1_finetune_heads", lr=5e-3, batch_size=64, epochs=10, num_classes=100)
