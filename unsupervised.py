@@ -69,7 +69,7 @@ class ActivationsDataset(Dataset):
 
 
 
-def train_bottleneck_unsupervised(device, bottleneck_dim = 384):
+def train_bottleneck_unsupervised(name, device, epochs = 50, bottleneck_dim = 384):
 
     activations = torch.load('processed_data/activations10k.pt')
     # print(activations.shape)
@@ -82,13 +82,14 @@ def train_bottleneck_unsupervised(device, bottleneck_dim = 384):
     train_dataloader = DataLoader(train_dataset, batch_size=128, shuffle=True)
     val_dataloader = DataLoader(val_dataset, batch_size=128, shuffle=False)
 
-    NUM_EPOCHS = 30
+
 
 
     model = Bottleneck(768, bottleneck_dim)
     criterion = nn.MSELoss()
-    optimizer = optim.AdamW(model.parameters(), lr=1e-3, weight_decay=1e-6)
-    losses = []
+    optimizer = optim.AdamW(model.parameters(), lr=1e-4, weight_decay=1e-6)
+    train_losses = []
+    val_losses = []
 
     model.to(device)
 
@@ -99,16 +100,17 @@ def train_bottleneck_unsupervised(device, bottleneck_dim = 384):
     print("\nStarting training...\n")
     best_loss = float('inf')
 
-    for epoch in range(NUM_EPOCHS):
-        print(f"Epoch [{epoch + 1}/{NUM_EPOCHS}]")
+    for epoch in range(epochs):
+        print(f"Epoch [{epoch + 1}/{epochs}]")
 
         train_loss, losses_epoch = train_epoch_bottleneck(model, train_dataloader, criterion,
                                             optimizer, device)
         val_loss = evaluate_bottleneck(model, val_dataloader, criterion, device)
 
         # scheduler.step()
-        # losses.append(train_loss)
-        losses.extend(losses_epoch)
+        train_losses.append(train_loss)
+        val_losses.append(val_loss)
+        # losses.extend(losses_epoch)
 
         print(f"Train Loss: {train_loss:.4f}")
         # print(f"Test Loss: {test_loss:.4f}, Test Acc: {test_acc:.2f}%")
@@ -122,15 +124,16 @@ def train_bottleneck_unsupervised(device, bottleneck_dim = 384):
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
                 'val_loss': val_loss,
-            }, f'models/bottleneck_best_model_{bottleneck_dim}.pth')
+            }, f'models/{name}_{bottleneck_dim}.pth')
             print(f"Saved best model with val loss: {val_loss:.2f}\n")
 
-    print(f"\nTraining completed! Best val loss: {best_loss:.2f}%")
+    print(f"\nTraining completed! Best val loss: {best_loss:.2f}")
     # use log scale
 
     plt.style.use('fivethirtyeight')
     plt.figure(figsize=(10, 6))
-    plt.semilogy(losses, label='Training Loss', linewidth=2)  # Use log scale on y-axis
+    plt.semilogy(train_losses, label='Training Loss', linewidth=2)  # Use log scale on y-axis
+    plt.semilogy(val_losses, label='Validation Loss', linewidth=2)
     plt.grid(True, which="both", ls="-", alpha=0.2)
     plt.xlabel('Iterations')
     plt.ylabel('Loss (log scale)')

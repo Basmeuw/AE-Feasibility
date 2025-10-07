@@ -474,4 +474,4 @@ if __name__ == '__main__':
     from unsupervised import train_bottleneck_unsupervised, retrieve_activations
     # retrieve_activations(device)
     # main()
-    train_bottleneck_unsupervised(device)
+    train_bottleneck_unsupervised("bottleneck_unsupervised", device, epochs=100)
