@@ -36,6 +36,10 @@ class BottleneckVisionTransformer(VisionTransformer):
 
         return x
 
+    def eval(self):
+        super().eval()
+        return self.train(False)
+
     def freeze_except_bottleneck(self):
         """Freezes all parameters except those in the bottleneck layer."""
         # Freeze conv_proj (patch embedding)

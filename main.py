@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from sklearn.model_selection import train_test_split
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader, Dataset, random_split
 from torchvision import datasets, transforms
 from torchvision.models import vit_b_32, ViT_B_32_Weights, VisionTransformer
 
@@ -69,12 +69,12 @@ def evaluate(model, loader, criterion, device):
     return running_loss / len(loader), 100. * correct / total
 
 
-def train(model, train_loader, test_loader, criterion, optimizer, scheduler, device, NUM_EPOCHS):
+def train(model, train_loader, val_loader, test_loader, criterion, optimizer, scheduler, device, NUM_EPOCHS):
     # Lists to store metrics for plotting
     train_losses = []
-    test_losses = []
+    val_losses = []
     train_accuracies = []
-    test_accuracies = []
+    val_accuracies = []
 
     # Training loop
     print("\nStarting training...\n")
@@ -85,30 +85,30 @@ def train(model, train_loader, test_loader, criterion, optimizer, scheduler, dev
 
         # Train and Evaluate
         train_loss, train_acc = train_epoch(model, train_loader, criterion, optimizer, device)
-        test_loss, test_acc = evaluate(model, test_loader, criterion, device)
+        val_loss, val_acc = evaluate(model, val_loader, criterion, device)
 
         # Store metrics
         train_losses.append(train_loss)
-        test_losses.append(test_loss)
+        val_losses.append(val_loss)
         train_accuracies.append(train_acc)
-        test_accuracies.append(test_acc)
+        val_accuracies.append(val_acc)
 
         # Step the scheduler
         scheduler.step()
 
         # Print info
         print(f"Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.2f}%")
-        print(f"Test Loss: {test_loss:.4f}, Test Acc: {test_acc:.2f}%")
+        print(f"Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.2f}%")
         print(f"Learning Rate: {optimizer.param_groups[0]['lr']:.6f}\n")
 
         # Save best model
-        if test_acc > best_acc:
-            best_acc = test_acc
+        if val_acc > best_acc:
+            best_acc = val_acc
             torch.save({
                 'epoch': epoch,
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
-                'test_acc': test_acc,
+                'test_acc': val_acc,
             }, 'model_new_head.pth')
             print(f"✓ Saved best model with accuracy: {best_acc:.2f}%\n")
 
@@ -124,9 +124,9 @@ def train(model, train_loader, test_loader, criterion, optimizer, scheduler, dev
     # Return collected data
     return {
         'train_losses': train_losses,
-        'test_losses': test_losses,
+        'val_losses': val_losses,
         'train_accuracies': train_accuracies,
-        'test_accuracies': test_accuracies,
+        'val_accuracies': val_accuracies,
         'final_test_accuracy': final_acc
     }
 
@@ -136,8 +136,8 @@ def prepare_dataset(BATCH_SIZE):
     # Data augmentation and normalization
     train_transform = transforms.Compose([
         transforms.Resize(224),
-        # transforms.RandomCrop(224, padding=4),
-        # transforms.RandomHorizontalFlip(),
+        transforms.RandomCrop(224, padding=4),
+        transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.5071, 0.4867, 0.4408],
                              std=[0.2675, 0.2565, 0.2761])
@@ -157,28 +157,35 @@ def prepare_dataset(BATCH_SIZE):
     test_dataset = datasets.CIFAR100(root='./data', train=False,
                                      download=True, transform=test_transform)
 
-    # Get train indices for the split
-    train_idx, val_idx = train_test_split(
-        range(len(train_dataset_full)),
-        test_size=0.2,
-        random_state=42,
-        shuffle=True
-    )
+    train_dataset, val_dataset = split_dataset(train_dataset_full, 0.1)
 
-    # Create subset datasets
-    train_dataset = Subset(train_dataset_full, train_idx)
-    pretrain_dataset_full = Subset(train_dataset_full, val_idx)
+    train_dataset, pretrain_dataset = split_dataset(train_dataset, 0.2)
 
-    pretrain_dataset, pretrain_val_dataset = split_dataset(pretrain_dataset_full, val_fraction=0.1)
+    pretrain_dataset, pretrain_val_dataset = split_dataset(pretrain_dataset, val_fraction=0.1)
 
-    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE,
-                              shuffle=True, num_workers=4, pin_memory=True)
-    test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE,
-                             shuffle=False, num_workers=4, pin_memory=True)
-    pretrain_loader = DataLoader(pretrain_dataset, batch_size=BATCH_SIZE)
-    pretrain_val_loader = DataLoader(pretrain_val_dataset, batch_size=BATCH_SIZE)
 
-    return train_loader, test_loader, pretrain_loader, pretrain_val_loader
+
+    # # Get train indices for the split
+    # train_idx, val_idx = train_test_split(
+    #     range(len(train_dataset_full)),
+    #     test_size=0.2,
+    #     random_state=42,
+    #     shuffle=True
+    # )
+    #
+    # # Create subset datasets
+    # train_dataset = Subset(train_dataset_full, train_idx)
+    # pretrain_dataset_full = Subset(train_dataset_full, val_idx)
+
+
+
+    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
+    val_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=False)
+    test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False )
+    pretrain_loader = DataLoader(pretrain_dataset, batch_size=BATCH_SIZE, shuffle=True)
+    pretrain_val_loader = DataLoader(pretrain_val_dataset, batch_size=BATCH_SIZE, shuffle=True)
+
+    return train_loader, val_loader, test_loader, pretrain_loader, pretrain_val_loader
 
 def prepare_original_model(num_classes, device):
     # Load pre-trained Vision Transformer B/32 (4x faster than B/16)
@@ -295,7 +302,7 @@ def main():
     NUM_EPOCHS = 10
     NUM_CLASSES = 100
 
-    train_loader, test_loader, pretrain_loader, pretrain_val_loader = prepare_dataset(BATCH_SIZE)
+    train_loader, val_loader, test_loader, pretrain_loader, pretrain_val_loader = prepare_dataset(BATCH_SIZE)
 
     original_model, bottleneck_model = prepare_models(NUM_CLASSES, device)
 
@@ -316,9 +323,9 @@ def main():
     # retrieve_predictions(pretrain_loader, model , device)
 
 
-def finetune_original(device, lr=1e-4, batch_size=64, epochs=10, num_classes=100):
+def finetune_original(device, name="finetune_original", lr=1e-4, batch_size=64, epochs=10, num_classes=100):
     # Setup and Data Preparation
-    train_loader, test_loader, _, _ = prepare_dataset(batch_size)
+    train_loader, val_loader, test_loader, _, _ = prepare_dataset(batch_size)
     original_model = prepare_original_model(num_classes, device)
 
     criterion = nn.CrossEntropyLoss()
@@ -329,6 +336,7 @@ def finetune_original(device, lr=1e-4, batch_size=64, epochs=10, num_classes=100
     training_data = train(
         original_model,
         train_loader,
+        val_loader,
         test_loader,
         criterion,
         optimizer,
@@ -340,37 +348,38 @@ def finetune_original(device, lr=1e-4, batch_size=64, epochs=10, num_classes=100
     # Plot Training Loss vs Validation Loss
     plot_metrics(
         train_data=training_data['train_losses'],
-        val_data=training_data['test_losses'],
+        val_data=training_data['val_losses'],
         metric_name='Loss',
         title='Training vs Validation Loss (Finetuning)',
-        save_path='figures/loss_plot.png'
+        save_path=f'figures/{name}_loss.png'
     )
 
     # Optionally, plot Training Accuracy vs Validation Accuracy
     plot_metrics(
         train_data=training_data['train_accuracies'],
-        val_data=training_data['test_accuracies'],
+        val_data=training_data['val_accuracies'],
         metric_name='Accuracy',
         title='Training vs Validation Accuracy (Finetuning)',
-        save_path='figures/accuracy_plot.png'
+        save_path=f'figures/{name}_accuracy.png'
     )
 
     print(f"\nFinetuning process complete with final test accuracy: {training_data['final_test_accuracy']:.2f}%")
 
 
-def finetune_bottleneck(device, lr=1e-4, batch_size=64, epochs=10, num_classes=100):
+def finetune_bottleneck(bottleneck_path, device, name="finetune_original", lr=1e-4, batch_size=64, epochs=10, num_classes=100):
     # Setup and Data Preparation
-    train_loader, test_loader, _, _ = prepare_dataset(batch_size)
-    original_model = prepare_bottleneck_model(num_classes, 384, "models/bottleneck_unsupervised_384.pth", device)
+    train_loader, val_loader, test_loader, _, _ = prepare_dataset(batch_size)
+    original_model = prepare_bottleneck_model(num_classes, 384, bottleneck_path, device)
 
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.AdamW(original_model.parameters(), lr=lr, weight_decay=0.01)
-    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)
+    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs, eta_min=3e-5)
 
     # Training
     training_data = train(
         original_model,
         train_loader,
+        val_loader,
         test_loader,
         criterion,
         optimizer,
@@ -382,19 +391,19 @@ def finetune_bottleneck(device, lr=1e-4, batch_size=64, epochs=10, num_classes=1
     # Plot Training Loss vs Validation Loss
     plot_metrics(
         train_data=training_data['train_losses'],
-        val_data=training_data['test_losses'],
+        val_data=training_data['val_losses'],
         metric_name='Loss',
-        title='Bottleneck Training vs Validation Loss (Finetuning)',
-        save_path='figures/bottleneck_loss_plot.png'
+        title='Bottleneck ViT Training vs Validation Loss (Finetuning)',
+        save_path=f'figures/{name}_loss.png'
     )
 
     # Optionally, plot Training Accuracy vs Validation Accuracy
     plot_metrics(
         train_data=training_data['train_accuracies'],
-        val_data=training_data['test_accuracies'],
+        val_data=training_data['val_accuracies'],
         metric_name='Accuracy',
-        title='Bottleneck Training vs Validation Accuracy (Finetuning)',
-        save_path='figures/bottleneck_accuracy_plot.png'
+        title='Bottleneck ViT Training vs Validation Accuracy (Finetuning)',
+        save_path=f'figures/{name}_accuracy.png'
     )
 
     print(f"\nFinetuning process complete with final test accuracy: {training_data['final_test_accuracy']:.2f}%")
@@ -594,18 +603,28 @@ def retrieve_predictions(pretrain_loader, model, device):
 
 def split_dataset(dataset, val_fraction=0.2):
 # Get train indices for the split
-    train_idx, val_idx = train_test_split(
-        range(len(dataset)),
-        test_size=val_fraction,
-        random_state=42,
-        shuffle=True
+#     train_idx, val_idx = train_test_split(
+#         range(len(dataset)),
+#         test_size=val_fraction,
+#         random_state=42,
+#         shuffle=False
+#     )
+#
+#     # Create subset datasets
+#     train_dataset = Subset(dataset, train_idx)
+#     pretrain_dataset = Subset(dataset, val_idx)
+
+    train_size = int((1 - val_fraction) * len(dataset))  # 90% train
+    val_size = len(dataset) - train_size   # 10% val
+
+    # Deterministic split
+    train_dataset, val_dataset = random_split(
+        dataset,
+        [train_size, val_size],
+        generator=torch.Generator().manual_seed(seed)
     )
 
-    # Create subset datasets
-    train_dataset = Subset(dataset, train_idx)
-    pretrain_dataset = Subset(dataset, val_idx)
-
-    return train_dataset, pretrain_dataset
+    return train_dataset, val_dataset
 
 
 def plot_metrics(train_data, val_data, metric_name, title, save_path=None):
@@ -640,15 +659,21 @@ def plot_metrics(train_data, val_data, metric_name, title, save_path=None):
 
     plt.show()
 
+seed = 42
+
 if __name__ == '__main__':
     # Set device
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Using device: {device}")
 
+
+    torch.manual_seed(seed)
+
     from unsupervised import train_bottleneck_unsupervised, retrieve_activations
     # retrieve_activations(device)
     # main()
-    train_bottleneck_unsupervised("bottleneck_unsupervised_d0.1", device, epochs=100)
+    # train_bottleneck_unsupervised("bottleneck_unsupervised_d0.1", device, epochs=100)
 
-    # finetune_original(device, lr=1e-4, batch_size=64, epochs=10, num_classes=100)
-    # finetune_bottleneck(device, lr=1e-4, batch_size=64, epochs=10, num_classes=100)
+    finetune_original(device, name="original_v1", lr=1e-4, batch_size=64, epochs=10, num_classes=100)
+    finetune_bottleneck("models/bottleneck_unsupervised_d0.1_384.pth", name="bottleneckv1",  device=device,
+                        lr=1e-4, batch_size=64, epochs=10, num_classes=100)

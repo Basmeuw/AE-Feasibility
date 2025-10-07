@@ -17,7 +17,7 @@ from torchdistill.core.forward_hook import ForwardHookManager
 
 def retrieve_activations(device):
     # train_loader, test_loader, pretrain_loader, pretrain_val_loader =  prepare_dataset(64)
-    _, _, pretrain_loader, _ =  prepare_dataset(64)
+    _, _, _, pretrain_loader, _ =  prepare_dataset(64)
 
     model = prepare_original_model(device)
 
