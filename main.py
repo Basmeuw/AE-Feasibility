@@ -1,4 +1,5 @@
 import copy
+import json
 
 import torch
 import torch.nn as nn
@@ -78,6 +79,7 @@ def train(model, train_loader, val_loader, test_loader, criterion, optimizer, sc
 
     # Training loop
     print("\nStarting training...\n")
+    best_loss = 0.0
     best_acc = 0.0
 
     for epoch in range(NUM_EPOCHS):
@@ -102,17 +104,19 @@ def train(model, train_loader, val_loader, test_loader, criterion, optimizer, sc
         print(f"Learning Rate: {optimizer.param_groups[0]['lr']:.6f}\n")
 
         # Save best model
-        if val_acc > best_acc:
+        if val_loss > best_loss:
+            best_loss = val_loss
             best_acc = val_acc
             torch.save({
                 'epoch': epoch,
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
-                'test_acc': val_acc,
+                'val_loss': val_loss,
+                'val_acc': val_acc,
             }, 'model_new_head.pth')
-            print(f"✓ Saved best model with accuracy: {best_acc:.2f}%\n")
+            print(f"✓ Saved best model with loss: {val_loss:.4f}, acc: {val_acc:.2f}%\n")
 
-    print(f"\nTraining completed! Best test accuracy: {best_acc:.2f}%")
+    print(f"\nTraining completed! Best validation loss: {best_loss:.4f} , acc: {best_acc:.2f}%")
 
     # Load and evaluate best model
     print("\nLoading best model for final evaluation...")
@@ -123,11 +127,11 @@ def train(model, train_loader, val_loader, test_loader, criterion, optimizer, sc
 
     # Return collected data
     return {
+        'final_test_accuracy': final_acc,
         'train_losses': train_losses,
         'val_losses': val_losses,
         'train_accuracies': train_accuracies,
         'val_accuracies': val_accuracies,
-        'final_test_accuracy': final_acc
     }
 
 
@@ -153,34 +157,23 @@ def prepare_dataset(BATCH_SIZE):
     # Load CIFAR-100 dataset
     print("Loading CIFAR-100 dataset...")
     train_dataset_full = datasets.CIFAR100(root='./data', train=True,
-                                           download=True, transform=train_transform)
+                                           download=True)
     test_dataset = datasets.CIFAR100(root='./data', train=False,
                                      download=True, transform=test_transform)
 
-    train_dataset, val_dataset = split_dataset(train_dataset_full, 0.1)
+    train_dataset2, val_dataset = split_dataset(train_dataset_full, 0.1)
 
-    train_dataset, pretrain_dataset = split_dataset(train_dataset, 0.2)
+    train_dataset, pretrain_dataset = split_dataset(train_dataset2, 0.2)
 
     pretrain_dataset, pretrain_val_dataset = split_dataset(pretrain_dataset, val_fraction=0.1)
 
-
-
-    # # Get train indices for the split
-    # train_idx, val_idx = train_test_split(
-    #     range(len(train_dataset_full)),
-    #     test_size=0.2,
-    #     random_state=42,
-    #     shuffle=True
-    # )
-    #
-    # # Create subset datasets
-    # train_dataset = Subset(train_dataset_full, train_idx)
-    # pretrain_dataset_full = Subset(train_dataset_full, val_idx)
-
-
+    train_dataset.dataset.transform = train_transform
+    val_dataset.dataset.transform = test_transform
+    pretrain_dataset.dataset.transform = train_transform
+    pretrain_val_dataset.dataset.transform = test_transform
 
     train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
-    val_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=False)
+    val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False)
     test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False )
     pretrain_loader = DataLoader(pretrain_dataset, batch_size=BATCH_SIZE, shuffle=True)
     pretrain_val_loader = DataLoader(pretrain_val_dataset, batch_size=BATCH_SIZE, shuffle=True)
@@ -363,7 +356,14 @@ def finetune_original(device, name="finetune_original", lr=1e-4, batch_size=64, 
         save_path=f'figures/{name}_accuracy.png'
     )
 
+
+
     print(f"\nFinetuning process complete with final test accuracy: {training_data['final_test_accuracy']:.2f}%")
+
+    with open(f"results/{name}.json", "w") as f:
+        json.dump(training_data, f, indent=4)
+
+    return training_data
 
 
 def finetune_bottleneck(bottleneck_path, device, name="finetune_original", lr=1e-4, batch_size=64, epochs=10, num_classes=100):
@@ -407,6 +407,11 @@ def finetune_bottleneck(bottleneck_path, device, name="finetune_original", lr=1e
     )
 
     print(f"\nFinetuning process complete with final test accuracy: {training_data['final_test_accuracy']:.2f}%")
+
+    with open(f"results/{name}.json", "w") as f:
+        json.dump(training_data, f, indent=4)
+
+    return training_data
 
 def train_bottleneck_supervised(teacher, student: BottleneckVisionTransformer, pretrain_loader, pretrain_val_loader, device):
     pre_trained = torch.load("model_new_head.pth", map_location=device)
@@ -663,7 +668,7 @@ seed = 42
 
 if __name__ == '__main__':
     # Set device
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    device = torch.device('cuda:1' if torch.cuda.is_available() else 'cpu')
     print(f"Using device: {device}")
 
 
@@ -675,5 +680,7 @@ if __name__ == '__main__':
     # train_bottleneck_unsupervised("bottleneck_unsupervised_d0.1", device, epochs=100)
 
     finetune_original(device, name="original_v1", lr=1e-4, batch_size=64, epochs=10, num_classes=100)
+
+
     finetune_bottleneck("models/bottleneck_unsupervised_d0.1_384.pth", name="bottleneckv1",  device=device,
                         lr=1e-4, batch_size=64, epochs=10, num_classes=100)
