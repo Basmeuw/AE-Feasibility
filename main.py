@@ -94,7 +94,7 @@ def train(model, train_loader, val_loader, test_loader, criterion, optimizer, sc
         val_accuracies.append(val_acc)
 
         # Step the scheduler
-        scheduler.step()
+        # scheduler.step()
 
         # Print info
         print(f"Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.2f}%")
@@ -102,7 +102,7 @@ def train(model, train_loader, val_loader, test_loader, criterion, optimizer, sc
         print(f"Learning Rate: {optimizer.param_groups[0]['lr']:.6f}\n")
 
         # Save best model
-        if val_loss > best_loss:
+        if val_loss < best_loss:
             best_loss = val_loss
             best_acc = val_acc
             torch.save({
