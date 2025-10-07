@@ -87,7 +87,9 @@ def train_bottleneck_unsupervised(name, device, epochs = 50, bottleneck_dim = 38
 
     model = Bottleneck(768, bottleneck_dim)
     criterion = nn.MSELoss()
+    # optimizer = optim.AdamW(model.parameters(), lr=1e-4, weight_decay=1e-6)
     optimizer = optim.AdamW(model.parameters(), lr=1e-4, weight_decay=1e-6)
+    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)
     train_losses = []
     val_losses = []
 
@@ -107,9 +109,11 @@ def train_bottleneck_unsupervised(name, device, epochs = 50, bottleneck_dim = 38
                                             optimizer, device)
         val_loss = evaluate_bottleneck(model, val_dataloader, criterion, device)
 
-        # scheduler.step()
+        scheduler.step()
         train_losses.append(train_loss)
         val_losses.append(val_loss)
+
+
         # losses.extend(losses_epoch)
 
         print(f"Train Loss: {train_loss:.4f}")
@@ -125,9 +129,9 @@ def train_bottleneck_unsupervised(name, device, epochs = 50, bottleneck_dim = 38
                 'optimizer_state_dict': optimizer.state_dict(),
                 'val_loss': val_loss,
             }, f'models/{name}_{bottleneck_dim}.pth')
-            print(f"Saved best model with val loss: {val_loss:.2f}\n")
+            print(f"Saved best model with val loss: {val_loss:.4f}\n")
 
-    print(f"\nTraining completed! Best val loss: {best_loss:.2f}")
+    print(f"\nTraining completed! Best val loss: {best_loss:.4f}")
     # use log scale
 
     plt.style.use('fivethirtyeight')

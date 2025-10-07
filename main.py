@@ -384,8 +384,8 @@ def finetune_bottleneck(device, lr=1e-4, batch_size=64, epochs=10, num_classes=1
         train_data=training_data['train_losses'],
         val_data=training_data['test_losses'],
         metric_name='Loss',
-        title='Training vs Validation Loss (Finetuning)',
-        save_path='figures/loss_plot.png'
+        title='Bottleneck Training vs Validation Loss (Finetuning)',
+        save_path='figures/bottleneck_loss_plot.png'
     )
 
     # Optionally, plot Training Accuracy vs Validation Accuracy
@@ -393,8 +393,8 @@ def finetune_bottleneck(device, lr=1e-4, batch_size=64, epochs=10, num_classes=1
         train_data=training_data['train_accuracies'],
         val_data=training_data['test_accuracies'],
         metric_name='Accuracy',
-        title='Training vs Validation Accuracy (Finetuning)',
-        save_path='figures/accuracy_plot.png'
+        title='Bottleneck Training vs Validation Accuracy (Finetuning)',
+        save_path='figures/bottleneck_accuracy_plot.png'
     )
 
     print(f"\nFinetuning process complete with final test accuracy: {training_data['final_test_accuracy']:.2f}%")
@@ -648,7 +648,7 @@ if __name__ == '__main__':
     from unsupervised import train_bottleneck_unsupervised, retrieve_activations
     # retrieve_activations(device)
     # main()
-    # train_bottleneck_unsupervised("bottleneck_unsupervised", device, epochs=100)
+    train_bottleneck_unsupervised("bottleneck_unsupervised_d0.1", device, epochs=100)
 
     # finetune_original(device, lr=1e-4, batch_size=64, epochs=10, num_classes=100)
-    finetune_bottleneck(device, lr=1e-4, batch_size=64, epochs=10, num_classes=100)
+    # finetune_bottleneck(device, lr=1e-4, batch_size=64, epochs=10, num_classes=100)
