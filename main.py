@@ -7,7 +7,7 @@ from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader, Dataset
 from torchvision import datasets, transforms
 from torchvision.models import vit_b_32, ViT_B_32_Weights, VisionTransformer
-from torchdistill.core.forward_hook import ForwardHookManager
+
 from tqdm import tqdm
 from torch.utils.data import Subset
 import torch.nn.functional as F
@@ -16,6 +16,8 @@ import numpy as np
 from bottleneck import Bottleneck
 from bottleneck_vision_transformer import BottleneckVisionTransformer
 import matplotlib.pyplot as plt
+
+
 
 
 # Training function
@@ -105,15 +107,7 @@ def train( model, train_loader, test_loader, criterion, optimizer, scheduler, de
     final_loss, final_acc = evaluate(model, test_loader, criterion, device)
     print(f"Final Test Accuracy: {final_acc:.2f}%")
 
-def main():
-
-
-    # Hyperparameters
-    BATCH_SIZE = 64
-    LEARNING_RATE = 1e-4
-    NUM_EPOCHS = 10
-    NUM_CLASSES = 100
-
+def prepare_dataset(BATCH_SIZE):
     # Data augmentation and normalization
     train_transform = transforms.Compose([
         transforms.Resize(224),
@@ -134,7 +128,7 @@ def main():
     # Load CIFAR-100 dataset
     print("Loading CIFAR-100 dataset...")
     train_dataset_full = datasets.CIFAR100(root='./data', train=True,
-                                      download=True, transform=train_transform)
+                                           download=True, transform=train_transform)
     test_dataset = datasets.CIFAR100(root='./data', train=False,
                                      download=True, transform=test_transform)
 
@@ -152,7 +146,6 @@ def main():
 
     pretrain_dataset, pretrain_val_dataset = split_dataset(pretrain_dataset_full, val_fraction=0.1)
 
-
     train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE,
                               shuffle=True, num_workers=4, pin_memory=True)
     test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE,
@@ -160,30 +153,35 @@ def main():
     pretrain_loader = DataLoader(pretrain_dataset, batch_size=BATCH_SIZE)
     pretrain_val_loader = DataLoader(pretrain_val_dataset, batch_size=BATCH_SIZE)
 
+    return train_loader, test_loader, pretrain_loader, pretrain_val_loader
 
-
+def prepare_original_model(device):
     # Load pre-trained Vision Transformer B/32 (4x faster than B/16)
     print("\nLoading pre-trained Vision Transformer (ViT-B/32)...")
     # original_model = vit_b_32(weights=ViT_B_32_Weights.IMAGENET1K_V1)
     original_model = VisionTransformer(image_size=224,
-                                        patch_size=32,
-                                        num_layers=12,
-                                        num_heads=12,
-                                        hidden_dim=768,
-                                        mlp_dim=3072,
-                                        num_classes=1000,)
+                                       patch_size=32,
+                                       num_layers=12,
+                                       num_heads=12,
+                                       hidden_dim=768,
+                                       mlp_dim=3072,
+                                       num_classes=1000, )
 
-    original_model.load_state_dict(ViT_B_32_Weights.IMAGENET1K_V1.get_state_dict(progress=True, check_hash=True), strict=False)
+    original_model.load_state_dict(ViT_B_32_Weights.IMAGENET1K_V1.get_state_dict(progress=True, check_hash=True),
+                                   strict=True)
 
     # Modify the classification head for CIFAR-100 (100 classes)
     # original_model.heads = nn.Linear(original_model.heads[0].in_features, NUM_CLASSES)
     original_model.to(device)
 
+    return original_model
+
+def prepare_bottleneck_model(bottleneck_dim, path, device):
     # 1. Recreate architecture
-    bottleneck = Bottleneck(embedding_dim=768, bottleneck_dim=384)
+    bottleneck = Bottleneck(embedding_dim=768, bottleneck_dim=bottleneck_dim)
 
     # 2. Load pretrained weights
-    saved_model = torch.load("models/bottleneck_best_model_384.pth", map_location=device)
+    saved_model = torch.load(path, map_location=device)
 
     bottleneck.load_state_dict(saved_model['model_state_dict'])
 
@@ -191,26 +189,49 @@ def main():
     bottleneck_copy = copy.deepcopy(bottleneck)
 
     bottleneck_model = BottleneckVisionTransformer(bottleneck_copy,
-        image_size=224,
-        patch_size=32,
-        num_layers=12,
-        num_heads=12,
-        hidden_dim=768,
-        mlp_dim=3072,
-        num_classes=1000,
-    )
+                                                   image_size=224,
+                                                   patch_size=32,
+                                                   num_layers=12,
+                                                   num_heads=12,
+                                                   hidden_dim=768,
+                                                   mlp_dim=3072,
+                                                   num_classes=1000,
+                                                   )
 
     bottleneck_model.load_pretrained_weights(ViT_B_32_Weights.IMAGENET1K_V1)
     # bottleneck_model.load_state_dict(ViT_B_32_Weights.IMAGENET1K_V1.get_state_dict(progress=True, check_hash=True))
     # bottleneck_model.heads = nn.Linear(bottleneck_model.heads[0].in_features, NUM_CLASSES)
     bottleneck_model = bottleneck_model.to(device)
 
+    return bottleneck_model
+
+def prepare_models(NUM_CLASSES, device):
+
+    original_model = prepare_original_model(device)
+
+    bottleneck_model = prepare_bottleneck_model(768, "models/bottleneck_best_model_384.pth", device)
     # 1. Create ONE new classification head
     new_head = nn.Linear(original_model.heads[0].in_features, NUM_CLASSES)
 
     # 2. Assign the EXACT SAME head to both models
     original_model.heads = new_head
     bottleneck_model.heads = new_head  # Now they are identical
+
+    return original_model, bottleneck_model
+
+def main():
+
+
+    # Hyperparameters
+    BATCH_SIZE = 64
+    LEARNING_RATE = 1e-4
+    NUM_EPOCHS = 10
+    NUM_CLASSES = 100
+
+    train_loader, test_loader, pretrain_loader, pretrain_val_loader = prepare_dataset(BATCH_SIZE)
+
+    original_model, bottleneck_model = prepare_models(NUM_CLASSES, device)
+
     # bottleneck_model.heads = nn.Linear(original_model.heads[0].in_features, NUM_CLASSES)
 
 
@@ -223,14 +244,12 @@ def main():
     # Learning rate scheduler
     scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=NUM_EPOCHS)
 
-
-
     # train(original_model, pretrain_loader, pretrain_val_loader, criterion, optimizer, scheduler, device, NUM_EPOCHS)
 
     # train_bottleneck_unsupervised(device, bottleneck_dim=384)
-    train_bottleneck_supervised(original_model, bottleneck_model, pretrain_loader, pretrain_val_loader, device)
+    # train_bottleneck_supervised(original_model, bottleneck_model, pretrain_loader, pretrain_val_loader, device)
     # retrieve_predictions(pretrain_loader, model , device)
-    # retrieve_activations(pretrain_loader, model, device)
+
 
 
 
@@ -409,6 +428,8 @@ def evaluate_bottleneck_supervised(student, teacher, loader, device):
     return val_loss, val_acc
 
 def retrieve_predictions(pretrain_loader, model, device):
+
+
     model.eval()
 
     all_predictions = []
@@ -429,176 +450,6 @@ def retrieve_predictions(pretrain_loader, model, device):
     return all_predictions  # (10000, 100)
 
 
-def retrieve_activations(pretrain_loader, model, device):
-    model.eval()
-
-    forward_hook_manager = ForwardHookManager(device)
-    forward_hook_manager.add_hook(model, 'conv_proj', requires_input=True, requires_output=True)
-
-    all_activations = []
-
-    with torch.no_grad():
-        for inputs, _ in tqdm(pretrain_loader, desc='Evaluating'):
-            inputs = inputs.to(device)
-
-            # Forward pass (hook stores activations)
-            _ = model(inputs)
-
-            io_dict = forward_hook_manager.pop_io_dict()
-            conv_out = io_dict['conv_proj']['output']  # shape: (B, hidden_dim, h, w)
-
-            B, hidden_dim, h, w = conv_out.shape
-            n_patches = h * w
-
-            # reshape to (B, n_patches, hidden_dim)
-            conv_out = conv_out.reshape(B, hidden_dim, n_patches).permute(0, 2, 1)
-
-            all_activations.append(conv_out.cpu())
-
-    # Concatenate all batches -> (N, n_patches, hidden_dim)
-    all_activations = torch.cat(all_activations, dim=0)
-    # Merge N and n_patches dimensions -> (N * n_patches, hidden_dim)
-    # all_activations = all_activations.reshape(-1, all_activations.shape[-1])
-
-
-    print(all_activations.shape)
-    torch.save(all_activations.cpu(), 'processed_data/activations10k.pt')
-    return all_activations  # (10000, 49, 768)
-
-
-class ActivationsDataset(Dataset):
-    def __init__(self, activations):
-        self.activations = activations # Convert numpy to tensor if needed
-
-    def __len__(self):
-        return len(self.activations)
-
-    def __getitem__(self, idx):
-        return self.activations[idx]
-
-
-
-def train_bottleneck_unsupervised(device, bottleneck_dim = 96):
-
-    activations = torch.load('processed_data/activations10k.pt')
-    # print(activations.shape)
-    # print(activations)
-    dataset = ActivationsDataset(activations)
-    train_dataset, val_dataset = split_dataset(dataset, val_fraction=0.1)
-
-    # split into train and val
-
-    train_dataloader = DataLoader(train_dataset, batch_size=128, shuffle=True)
-    val_dataloader = DataLoader(val_dataset, batch_size=128, shuffle=False)
-
-    NUM_EPOCHS = 30
-
-
-    model = Bottleneck(768, bottleneck_dim)
-    criterion = nn.MSELoss()
-    optimizer = optim.AdamW(model.parameters(), lr=1e-3, weight_decay=1e-6)
-    losses = []
-
-    total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    print(f'Total number of parameters: {total_params}')
-
-    # Training loop
-    print("\nStarting training...\n")
-    best_loss = float('inf')
-
-    for epoch in range(NUM_EPOCHS):
-        print(f"Epoch [{epoch + 1}/{NUM_EPOCHS}]")
-
-        train_loss, losses_epoch = train_epoch_bottleneck(model, train_dataloader, criterion,
-                                            optimizer, device)
-        val_loss = evaluate_bottleneck(model, val_dataloader, criterion, device)
-
-        # scheduler.step()
-        # losses.append(train_loss)
-        losses.extend(losses_epoch)
-
-        print(f"Train Loss: {train_loss:.4f}")
-        # print(f"Test Loss: {test_loss:.4f}, Test Acc: {test_acc:.2f}%")
-        print(f"Learning Rate: {optimizer.param_groups[0]['lr']:.6f}\n")
-
-        # Save best model (this overfits)
-        if val_loss < best_loss:
-            best_loss = val_loss
-            torch.save({
-                'epoch': epoch,
-                'model_state_dict': model.state_dict(),
-                'optimizer_state_dict': optimizer.state_dict(),
-                'val_loss': val_loss,
-            }, f'models/bottleneck_best_model_{bottleneck_dim}.pth')
-            print(f"Saved best model with val loss: {val_loss:.2f}\n")
-
-    print(f"\nTraining completed! Best val loss: {best_loss:.2f}%")
-    # use log scale
-
-    plt.style.use('fivethirtyeight')
-    plt.figure(figsize=(10, 6))
-    plt.semilogy(losses, label='Training Loss', linewidth=2)  # Use log scale on y-axis
-    plt.grid(True, which="both", ls="-", alpha=0.2)
-    plt.xlabel('Iterations')
-    plt.ylabel('Loss (log scale)')
-    plt.title('Unsupervised Bottleneck Training Loss')
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig('figures/unsupervised_bottleneck_training_loss.png')
-    plt.show()
-
-
-    # # Load and evaluate best model
-    # print("\nLoading best model for final evaluation...")
-    # checkpoint = torch.load('best_model.pth')
-    # model.load_state_dict(checkpoint['model_state_dict'])
-    # final_loss, final_acc = evaluate(model, test_loader, criterion, device)
-    # print(f"Final Test Accuracy: {final_acc:.2f}%")
-
-
-# Bottleneck usual input (B x Sequence length x Hidden dim), (B x 49 x 768)
-#
-#
-#
-
-
-def train_epoch_bottleneck(model, loader, criterion, optimizer, device):
-    model.train()
-    running_loss = 0.0
-
-    losses = []
-
-    pbar = tqdm(loader, desc='Training')
-    for inputs in pbar:
-        inputs = inputs.to(device)
-
-        reconstructed = model(inputs)
-        loss = criterion(reconstructed, inputs)
-        loss.backward()
-        optimizer.step()
-        losses.append(loss.item())
-
-        running_loss += loss.item()
-
-
-        pbar.set_postfix({'loss': running_loss / len(pbar)})
-
-    return running_loss / len(loader), losses
-
-# Evaluation function
-def evaluate_bottleneck(model, loader, criterion, device):
-    model.eval()
-    running_loss = 0.0
-
-    with torch.no_grad():
-        for inputs in tqdm(loader, desc='Evaluating'):
-            inputs = inputs.to(device)
-            reconstructed = model(inputs)
-            loss = criterion(reconstructed, inputs)
-
-            running_loss += loss.item()
-
-    return running_loss / len(loader)
 
 def split_dataset(dataset, val_fraction=0.2):
 # Get train indices for the split
@@ -620,5 +471,7 @@ if __name__ == '__main__':
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Using device: {device}")
 
-    main()
-    # train_bottleneck_unsupervised(device)
+    from unsupervised import train_bottleneck_unsupervised, retrieve_activations
+    # retrieve_activations(device)
+    # main()
+    train_bottleneck_unsupervised(device)
