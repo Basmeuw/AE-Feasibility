@@ -7,7 +7,7 @@ import torch.optim as optim
 from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader, Dataset, random_split
 from torchvision import datasets, transforms
-from torchvision.models import vit_b_32, ViT_B_32_Weights, VisionTransformer
+from torchvision.models import vit_b_32, ViT_B_32_Weights, VisionTransformer, ViT_B_16_Weights
 
 from tqdm import tqdm
 from torch.utils.data import Subset
@@ -17,8 +17,6 @@ import numpy as np
 from bottleneck import Bottleneck
 from bottleneck_vision_transformer import BottleneckVisionTransformer
 import matplotlib.pyplot as plt
-
-
 
 
 # Training function
@@ -180,20 +178,25 @@ def prepare_dataset(BATCH_SIZE):
 
     return train_loader, val_loader, test_loader, pretrain_loader, pretrain_val_loader
 
-def prepare_original_model(num_classes, device):
+def prepare_original_model(num_classes, device, patch_size=16):
     # Load pre-trained Vision Transformer B/32 (4x faster than B/16)
-    print("\nLoading pre-trained Vision Transformer (ViT-B/32)...")
+    print(f"\nLoading pre-trained Vision Transformer (ViT-B/{16})...")
     # original_model = vit_b_32(weights=ViT_B_32_Weights.IMAGENET1K_V1)
     original_model = VisionTransformer(image_size=224,
-                                       patch_size=32,
+                                       patch_size=patch_size,
                                        num_layers=12,
                                        num_heads=12,
                                        hidden_dim=768,
                                        mlp_dim=3072,
                                        num_classes=1000, )
 
-    original_model.load_state_dict(ViT_B_32_Weights.IMAGENET1K_V1.get_state_dict(progress=True, check_hash=True),
-                                   strict=True)
+    if patch_size == 32:
+        original_model.load_state_dict(ViT_B_32_Weights.IMAGENET1K_V1.get_state_dict(progress=True, check_hash=True),
+                                       strict=True)
+    elif patch_size == 16:
+        original_model.load_state_dict(ViT_B_16_Weights.IMAGENET1K_V1.get_state_dict(progress=True, check_hash=True),
+                                       strict=True)
+
 
     # Modify the classification head for CIFAR-100 (100 classes)
     # original_model.heads = nn.Linear(original_model.heads[0].in_features, NUM_CLASSES)
@@ -204,7 +207,7 @@ def prepare_original_model(num_classes, device):
 
     return original_model
 
-def prepare_bottleneck_model(num_classes, bottleneck_dim, path, device):
+def prepare_bottleneck_model(num_classes, bottleneck_dim, path, device, patch_size=16):
     # 1. Recreate architecture
     bottleneck = Bottleneck(embedding_dim=768, bottleneck_dim=bottleneck_dim)
 
@@ -218,7 +221,7 @@ def prepare_bottleneck_model(num_classes, bottleneck_dim, path, device):
 
     bottleneck_model = BottleneckVisionTransformer(bottleneck_copy,
                                                    image_size=224,
-                                                   patch_size=32,
+                                                   patch_size=patch_size,
                                                    num_layers=12,
                                                    num_heads=12,
                                                    hidden_dim=768,
@@ -226,7 +229,10 @@ def prepare_bottleneck_model(num_classes, bottleneck_dim, path, device):
                                                    num_classes=1000,
                                                    )
 
-    bottleneck_model.load_pretrained_weights(ViT_B_32_Weights.IMAGENET1K_V1)
+    if patch_size == 32:
+        bottleneck_model.load_pretrained_weights(ViT_B_32_Weights.IMAGENET1K_V1)
+    elif patch_size == 16:
+        bottleneck_model.load_pretrained_weights(ViT_B_16_Weights.IMAGENET1K_V1)
     # bottleneck_model.load_state_dict(ViT_B_32_Weights.IMAGENET1K_V1.get_state_dict(progress=True, check_hash=True))
     # bottleneck_model.heads = nn.Linear(bottleneck_model.heads[0].in_features, NUM_CLASSES)
     bottleneck_model.heads = nn.Linear(bottleneck_model.heads[0].in_features, num_classes)
@@ -355,8 +361,6 @@ def finetune_original(device, name="finetune_original", lr=1e-4, batch_size=64, 
         title='Training vs Validation Accuracy (Finetuning)',
         save_path=f'figures/{name}_accuracy.png'
     )
-
-
 
     print(f"\nFinetuning process complete with final test accuracy: {training_data['final_test_accuracy']:.2f}%")
 
@@ -672,15 +676,17 @@ if __name__ == '__main__':
     print(f"Using device: {device}")
 
 
+
+
     torch.manual_seed(seed)
 
     from unsupervised import train_bottleneck_unsupervised, retrieve_activations
     # retrieve_activations(device)
     # main()
-    # train_bottleneck_unsupervised("bottleneck_unsupervised_d0.1", device, epochs=100)
+    # train_bottleneck_unsupervised("bottleneck_unsupervised_P16", "activations10k_16.pt", device, epochs=100)
 
-    finetune_original(device, name="original_v1", lr=1e-4, batch_size=64, epochs=10, num_classes=100)
-
-
-    finetune_bottleneck("models/bottleneck_unsupervised_d0.1_384.pth", name="bottleneckv1",  device=device,
+    # finetune_original(device, name="original_v1", lr=1e-4, batch_size=64, epochs=10, num_classes=100)
+    #
+    #
+    finetune_bottleneck("models/bottleneck_unsupervised_P16_384.pth", name="bottleneckv2_P16",  device=device,
                         lr=1e-4, batch_size=64, epochs=10, num_classes=100)

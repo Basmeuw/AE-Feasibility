@@ -17,9 +17,9 @@ from torchdistill.core.forward_hook import ForwardHookManager
 
 def retrieve_activations(device):
     # train_loader, test_loader, pretrain_loader, pretrain_val_loader =  prepare_dataset(64)
-    _, _, _, pretrain_loader, _ =  prepare_dataset(64)
+    _, _, _, pretrain_loader, pretrain_val_loader =  prepare_dataset(64)
 
-    model = prepare_original_model(device)
+    model = prepare_original_model(100, device)
 
     model.eval()
 
@@ -46,15 +46,33 @@ def retrieve_activations(device):
 
             all_activations.append(conv_out.cpu())
 
+    with torch.no_grad():
+        for inputs, _ in tqdm(pretrain_val_loader, desc='Evaluating Val Loader'):
+            inputs = inputs.to(device)
+
+            # Forward pass (hook stores activations)
+            _ = model(inputs)
+
+            io_dict = forward_hook_manager.pop_io_dict()
+            conv_out = io_dict['conv_proj']['output']  # shape: (B, hidden_dim, h, w)
+
+            B, hidden_dim, h, w = conv_out.shape
+            n_patches = h * w
+
+            # reshape to (B, n_patches, hidden_dim)
+            conv_out = conv_out.reshape(B, hidden_dim, n_patches).permute(0, 2, 1)
+
+            all_activations.append(conv_out.cpu())
+
     # Concatenate all batches -> (N, n_patches, hidden_dim)
     all_activations = torch.cat(all_activations, dim=0)
     # Merge N and n_patches dimensions -> (N * n_patches, hidden_dim)
     # all_activations = all_activations.reshape(-1, all_activations.shape[-1])
 
 
-    print(all_activations.shape)
-    torch.save(all_activations.cpu(), 'processed_data/activations10k.pt')
-    return all_activations  # (10000, 49, 768)
+    print("All activation shape", all_activations.shape)
+    torch.save(all_activations.cpu(), 'processed_data/activations10k_16.pt')
+    return all_activations  # (10000, 49, 768) for P=32
 
 
 class ActivationsDataset(Dataset):
@@ -69,7 +87,7 @@ class ActivationsDataset(Dataset):
 
 
 
-def train_bottleneck_unsupervised(name, device, epochs = 50, bottleneck_dim = 384):
+def train_bottleneck_unsupervised(name, activations_path, device, epochs = 50, bottleneck_dim = 384):
 
     activations = torch.load('processed_data/activations10k.pt')
     # print(activations.shape)
