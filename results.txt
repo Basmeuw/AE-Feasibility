@@ -1,0 +1,409 @@
+Regular without bottleneck
+
+Using device: cuda
+Loading CIFAR-100 dataset...
+Train samples: 50000, Test samples: 10000
+
+Loading pre-trained Vision Transformer (ViT-B/32)...
+
+Starting training...
+
+Epoch [1/10]
+Training: 100%|██████████| 391/391 [07:11<00:00,  1.10s/it, loss=1.28, acc=68.2]
+Evaluating: 100%|██████████| 79/79 [00:30<00:00,  2.57it/s]
+Train Loss: 1.2774, Train Acc: 68.21%
+Test Loss: 0.7158, Test Acc: 79.34%
+Learning Rate: 0.000098
+
+✓ Saved best model with accuracy: 79.34%
+
+Epoch [2/10]
+Training: 100%|██████████| 391/391 [07:27<00:00,  1.14s/it, loss=0.517, acc=84.5]
+Evaluating: 100%|██████████| 79/79 [00:30<00:00,  2.57it/s]
+Train Loss: 0.5172, Train Acc: 84.49%
+Test Loss: 0.6287, Test Acc: 81.54%
+Learning Rate: 0.000090
+
+✓ Saved best model with accuracy: 81.54%
+
+Epoch [3/10]
+Training: 100%|██████████| 391/391 [07:27<00:00,  1.15s/it, loss=0.329, acc=89.8]
+Evaluating: 100%|██████████| 79/79 [00:30<00:00,  2.57it/s]
+Train Loss: 0.3294, Train Acc: 89.81%
+Test Loss: 0.5829, Test Acc: 82.67%
+Learning Rate: 0.000079
+
+✓ Saved best model with accuracy: 82.67%
+
+Epoch [4/10]
+Training: 100%|██████████| 391/391 [07:28<00:00,  1.15s/it, loss=0.196, acc=93.9]
+Evaluating: 100%|██████████| 79/79 [00:30<00:00,  2.57it/s]
+Train Loss: 0.1955, Train Acc: 93.87%
+Test Loss: 0.5995, Test Acc: 82.94%
+Learning Rate: 0.000065
+
+✓ Saved best model with accuracy: 82.94%
+
+Epoch [5/10]
+Training: 100%|██████████| 391/391 [07:28<00:00,  1.15s/it, loss=0.121, acc=96.3]
+Evaluating: 100%|██████████| 79/79 [00:30<00:00,  2.57it/s]
+Train Loss: 0.1206, Train Acc: 96.28%
+Test Loss: 0.5571, Test Acc: 84.47%
+Learning Rate: 0.000050
+
+✓ Saved best model with accuracy: 84.47%
+
+Epoch [6/10]
+Training: 100%|██████████| 391/391 [07:27<00:00,  1.15s/it, loss=0.0661, acc=98.1]
+Evaluating: 100%|██████████| 79/79 [00:30<00:00,  2.56it/s]
+Train Loss: 0.0661, Train Acc: 98.07%
+Test Loss: 0.5553, Test Acc: 85.42%
+Learning Rate: 0.000035
+
+✓ Saved best model with accuracy: 85.42%
+
+Epoch [7/10]
+Training: 100%|██████████| 391/391 [07:28<00:00,  1.15s/it, loss=0.0318, acc=99.2]
+Evaluating: 100%|██████████| 79/79 [00:30<00:00,  2.57it/s]
+Train Loss: 0.0318, Train Acc: 99.17%
+Test Loss: 0.5361, Test Acc: 86.50%
+Learning Rate: 0.000021
+
+✓ Saved best model with accuracy: 86.50%
+
+Epoch [8/10]
+Training: 100%|██████████| 391/391 [07:28<00:00,  1.15s/it, loss=0.0173, acc=99.6]
+Evaluating: 100%|██████████| 79/79 [00:30<00:00,  2.57it/s]
+Train Loss: 0.0173, Train Acc: 99.61%
+Test Loss: 0.5317, Test Acc: 86.67%
+Learning Rate: 0.000010
+
+✓ Saved best model with accuracy: 86.67%
+
+Epoch [9/10]
+Training: 100%|██████████| 391/391 [07:27<00:00,  1.14s/it, loss=0.00958, acc=99.8]
+Evaluating: 100%|██████████| 79/79 [00:30<00:00,  2.57it/s]
+Train Loss: 0.0096, Train Acc: 99.82%
+Test Loss: 0.5266, Test Acc: 87.19%
+Learning Rate: 0.000002
+
+✓ Saved best model with accuracy: 87.19%
+
+Epoch [10/10]
+Training: 100%|██████████| 391/391 [07:27<00:00,  1.15s/it, loss=0.00713, acc=99.9]
+Evaluating: 100%|██████████| 79/79 [00:30<00:00,  2.56it/s]
+Train Loss: 0.0071, Train Acc: 99.90%
+Test Loss: 0.5289, Test Acc: 87.31%
+Learning Rate: 0.000000
+
+✓ Saved best model with accuracy: 87.31%
+
+
+Training completed! Best test accuracy: 87.31%
+
+Loading best model for final evaluation...
+Evaluating: 100%|██████████| 79/79 [00:30<00:00,  2.58it/s]
+Final Test Accuracy: 87.31%
+
+
+
+
+1 epoch with xavier initialized bottleneck
+
+Epoch [1/1]
+Training:   0%|          | 0/391 [00:00<?, ?it/s]/Users/basmeuw/Dropbox/Education/MASTER/Y6 THESIS/Repository/CompressedPSL/.venv/lib/python3.12/site-packages/torch/utils/data/dataloader.py:684: UserWarning: 'pin_memory' argument is set as true but not supported on MPS now, then device pinned memory won't be used.
+  warnings.warn(warn_msg)
+Training: 100%|██████████| 391/391 [16:38<00:00,  2.55s/it, loss=4.03, acc=7.37]
+Evaluating: 100%|██████████| 79/79 [01:25<00:00,  1.09s/it]
+Train Loss: 4.0292, Train Acc: 7.37%
+Test Loss: 3.7386, Test Acc: 11.95%
+Learning Rate: 0.000000
+
+✓ Saved best model with accuracy: 11.95%
+
+
+
+1 epoch with unsupervised pre-trained bottleneck
+
+Epoch [1/1]
+Training:   0%|          | 0/313 [00:00<?, ?it/s]/Users/basmeuw/Dropbox/Education/MASTER/Y6 THESIS/Repository/CompressedPSL/.venv/lib/python3.12/site-packages/torch/utils/data/dataloader.py:684: UserWarning: 'pin_memory' argument is set as true but not supported on MPS now, then device pinned memory won't be used.
+  warnings.warn(warn_msg)
+Training: 100%|██████████| 313/313 [13:30<00:00,  2.59s/it, loss=4.24, acc=4.89]
+Evaluating: 100%|██████████| 79/79 [01:27<00:00,  1.11s/it]
+Train Loss: 4.2380, Train Acc: 4.89%
+Test Loss: 4.0096, Test Acc: 8.14%
+Learning Rate: 0.000000
+
+✓ Saved best model with accuracy: 8.14%
+
+
+
+10 epochs with pre-trained bottleneck
+
+Epoch [1/10]
+Training: 100%|██████████| 313/313 [05:50<00:00,  1.12s/it, loss=4.24, acc=4.81]
+Evaluating: 100%|██████████| 79/79 [00:30<00:00,  2.56it/s]
+Train Loss: 4.2425, Train Acc: 4.81%
+Test Loss: 4.0425, Test Acc: 7.81%
+Learning Rate: 0.000098
+
+✓ Saved best model with accuracy: 7.81%
+
+Epoch [2/10]
+Training: 100%|██████████| 313/313 [05:59<00:00,  1.15s/it, loss=3.92, acc=8.86]
+Evaluating: 100%|██████████| 79/79 [00:30<00:00,  2.55it/s]
+Train Loss: 3.9190, Train Acc: 8.86%
+Test Loss: 3.8505, Test Acc: 9.89%
+Learning Rate: 0.000090
+
+✓ Saved best model with accuracy: 9.89%
+
+Epoch [3/10]
+Training: 100%|██████████| 313/313 [06:00<00:00,  1.15s/it, loss=3.72, acc=12.3]
+Evaluating: 100%|██████████| 79/79 [00:31<00:00,  2.54it/s]
+Train Loss: 3.7167, Train Acc: 12.28%
+Test Loss: 3.6647, Test Acc: 13.48%
+Learning Rate: 0.000079
+
+✓ Saved best model with accuracy: 13.48%
+
+Epoch [4/10]
+Training: 100%|██████████| 313/313 [06:00<00:00,  1.15s/it, loss=3.55, acc=15.3]
+Evaluating: 100%|██████████| 79/79 [00:31<00:00,  2.55it/s]
+Train Loss: 3.5460, Train Acc: 15.29%
+Test Loss: 3.4851, Test Acc: 16.59%
+Learning Rate: 0.000065
+
+✓ Saved best model with accuracy: 16.59%
+
+Epoch [5/10]
+Training: 100%|██████████| 313/313 [06:01<00:00,  1.15s/it, loss=3.36, acc=18.2]
+Evaluating: 100%|██████████| 79/79 [00:31<00:00,  2.54it/s]
+Train Loss: 3.3629, Train Acc: 18.23%
+Test Loss: 3.3457, Test Acc: 18.83%
+Learning Rate: 0.000050
+
+✓ Saved best model with accuracy: 18.83%
+
+Epoch [6/10]
+Training: 100%|██████████| 313/313 [06:01<00:00,  1.15s/it, loss=3.21, acc=21.1]
+Evaluating: 100%|██████████| 79/79 [00:31<00:00,  2.53it/s]
+Train Loss: 3.2120, Train Acc: 21.14%
+Test Loss: 3.2374, Test Acc: 21.20%
+Learning Rate: 0.000035
+
+✓ Saved best model with accuracy: 21.20%
+
+Epoch [7/10]
+Training: 100%|██████████| 313/313 [06:01<00:00,  1.15s/it, loss=3.08, acc=23.7]
+Evaluating: 100%|██████████| 79/79 [00:31<00:00,  2.55it/s]
+Train Loss: 3.0814, Train Acc: 23.67%
+Test Loss: 3.1646, Test Acc: 22.58%
+Learning Rate: 0.000021
+
+✓ Saved best model with accuracy: 22.58%
+
+Epoch [8/10]
+Training: 100%|██████████| 313/313 [06:01<00:00,  1.15s/it, loss=2.97, acc=25.7]
+Evaluating: 100%|██████████| 79/79 [00:31<00:00,  2.54it/s]
+Train Loss: 2.9739, Train Acc: 25.71%
+Test Loss: 3.0903, Test Acc: 24.06%
+Learning Rate: 0.000010
+
+✓ Saved best model with accuracy: 24.06%
+
+Epoch [9/10]
+Training: 100%|██████████| 313/313 [06:01<00:00,  1.15s/it, loss=2.89, acc=27.7]
+Evaluating: 100%|██████████| 79/79 [00:31<00:00,  2.54it/s]
+Train Loss: 2.8940, Train Acc: 27.75%
+Test Loss: 3.0322, Test Acc: 25.61%
+Learning Rate: 0.000002
+
+✓ Saved best model with accuracy: 25.61%
+
+Epoch [10/10]
+Training: 100%|██████████| 313/313 [06:01<00:00,  1.15s/it, loss=2.84, acc=28.6]
+Evaluating: 100%|██████████| 79/79 [00:30<00:00,  2.55it/s]
+Train Loss: 2.8395, Train Acc: 28.62%
+Test Loss: 3.0247, Test Acc: 25.49%
+Learning Rate: 0.000000
+
+
+Training completed! Best test accuracy: 25.61%
+
+Loading best model for final evaluation...
+Evaluating: 100%|██████████| 79/79 [00:31<00:00,  2.51it/s]
+Final Test Accuracy: 25.61%
+
+
+
+
+
+20 epochs with supervised bottleneck
+
+Starting supervised bottleneck training...
+
+Epoch [1/20]
+Training Epoch: 100%|██████████| 141/141 [03:02<00:00,  1.29s/it, loss=0.1183, acc=1.78%]
+Evaluating: 100%|██████████| 16/16 [00:12<00:00,  1.24it/s]
+Train Loss: 0.1183, Train Acc: 1.78%
+Val Loss:   4.5105, Val Acc:   4.30%
+Learning Rate: 0.000994
+
+New best model saved with validation accuracy: 4.30%
+
+Epoch [2/20]
+Training Epoch: 100%|██████████| 141/141 [03:14<00:00,  1.38s/it, loss=0.0943, acc=4.70%]
+Evaluating: 100%|██████████| 16/16 [00:13<00:00,  1.21it/s]
+Train Loss: 0.0943, Train Acc: 4.70%
+Val Loss:   4.4457, Val Acc:   5.00%
+Learning Rate: 0.000976
+
+New best model saved with validation accuracy: 5.00%
+
+Epoch [3/20]
+Training Epoch: 100%|██████████| 141/141 [03:15<00:00,  1.39s/it, loss=0.0889, acc=5.59%]
+Evaluating: 100%|██████████| 16/16 [00:13<00:00,  1.21it/s]
+Train Loss: 0.0889, Train Acc: 5.59%
+Val Loss:   4.4239, Val Acc:   7.10%
+Learning Rate: 0.000946
+
+New best model saved with validation accuracy: 7.10%
+
+Epoch [4/20]
+Training Epoch: 100%|██████████| 141/141 [03:16<00:00,  1.39s/it, loss=0.0871, acc=6.50%]
+Evaluating: 100%|██████████| 16/16 [00:13<00:00,  1.19it/s]
+Train Loss: 0.0871, Train Acc: 6.50%
+Val Loss:   4.4077, Val Acc:   7.90%
+Learning Rate: 0.000905
+
+New best model saved with validation accuracy: 7.90%
+
+Epoch [5/20]
+Training Epoch: 100%|██████████| 141/141 [03:17<00:00,  1.40s/it, loss=0.0861, acc=6.92%]
+Evaluating: 100%|██████████| 16/16 [00:13<00:00,  1.19it/s]
+Train Loss: 0.0861, Train Acc: 6.92%
+Val Loss:   4.3948, Val Acc:   8.00%
+Learning Rate: 0.000854
+
+Training Epoch:   0%|          | 0/141 [00:00<?, ?it/s]New best model saved with validation accuracy: 8.00%
+
+Epoch [6/20]
+Training Epoch: 100%|██████████| 141/141 [03:18<00:00,  1.41s/it, loss=0.0853, acc=7.44%]
+Evaluating: 100%|██████████| 16/16 [00:13<00:00,  1.18it/s]
+Train Loss: 0.0853, Train Acc: 7.44%
+Val Loss:   4.3852, Val Acc:   8.20%
+Learning Rate: 0.000794
+
+Training Epoch:   0%|          | 0/141 [00:00<?, ?it/s]New best model saved with validation accuracy: 8.20%
+
+Epoch [7/20]
+Training Epoch: 100%|██████████| 141/141 [03:19<00:00,  1.41s/it, loss=0.0847, acc=7.86%]
+Evaluating: 100%|██████████| 16/16 [00:13<00:00,  1.18it/s]
+Train Loss: 0.0847, Train Acc: 7.86%
+Val Loss:   4.3783, Val Acc:   8.50%
+Learning Rate: 0.000727
+
+New best model saved with validation accuracy: 8.50%
+
+Epoch [8/20]
+Training Epoch: 100%|██████████| 141/141 [03:16<00:00,  1.39s/it, loss=0.0842, acc=8.17%]
+Evaluating: 100%|██████████| 16/16 [00:13<00:00,  1.20it/s]
+Train Loss: 0.0842, Train Acc: 8.17%
+Val Loss:   4.3731, Val Acc:   8.70%
+Learning Rate: 0.000655
+
+New best model saved with validation accuracy: 8.70%
+
+Epoch [9/20]
+Training Epoch: 100%|██████████| 141/141 [03:14<00:00,  1.38s/it, loss=0.0838, acc=8.48%]
+Evaluating: 100%|██████████| 16/16 [00:13<00:00,  1.22it/s]
+Train Loss: 0.0838, Train Acc: 8.48%
+Val Loss:   4.3690, Val Acc:   8.80%
+Learning Rate: 0.000578
+
+Training Epoch:   0%|          | 0/141 [00:00<?, ?it/s]New best model saved with validation accuracy: 8.80%
+
+Epoch [10/20]
+Training Epoch: 100%|██████████| 141/141 [03:16<00:00,  1.39s/it, loss=0.0835, acc=8.63%]
+Evaluating: 100%|██████████| 16/16 [00:13<00:00,  1.21it/s]
+Train Loss: 0.0835, Train Acc: 8.63%
+Val Loss:   4.3658, Val Acc:   9.30%
+Learning Rate: 0.000500
+
+New best model saved with validation accuracy: 9.30%
+
+Epoch [11/20]
+Training Epoch: 100%|██████████| 141/141 [03:14<00:00,  1.38s/it, loss=0.0832, acc=8.71%]
+Evaluating: 100%|██████████| 16/16 [00:13<00:00,  1.20it/s]
+Train Loss: 0.0832, Train Acc: 8.71%
+Val Loss:   4.3633, Val Acc:   9.60%
+Learning Rate: 0.000422
+
+Training Epoch:   0%|          | 0/141 [00:00<?, ?it/s]New best model saved with validation accuracy: 9.60%
+
+Epoch [12/20]
+Training Epoch: 100%|██████████| 141/141 [03:16<00:00,  1.40s/it, loss=0.0830, acc=8.91%]
+Evaluating: 100%|██████████| 16/16 [00:13<00:00,  1.19it/s]
+Train Loss: 0.0830, Train Acc: 8.91%
+Val Loss:   4.3613, Val Acc:   9.40%
+Learning Rate: 0.000345
+
+Epoch [13/20]
+Training Epoch: 100%|██████████| 141/141 [03:15<00:00,  1.39s/it, loss=0.0828, acc=8.96%]
+Evaluating: 100%|██████████| 16/16 [00:13<00:00,  1.19it/s]
+Training Epoch:   0%|          | 0/141 [00:00<?, ?it/s]Train Loss: 0.0828, Train Acc: 8.96%
+Val Loss:   4.3598, Val Acc:   9.20%
+Learning Rate: 0.000273
+
+Epoch [14/20]
+Training Epoch: 100%|██████████| 141/141 [03:17<00:00,  1.40s/it, loss=0.0826, acc=8.90%]
+Evaluating: 100%|██████████| 16/16 [00:13<00:00,  1.19it/s]
+Train Loss: 0.0826, Train Acc: 8.90%
+Val Loss:   4.3587, Val Acc:   9.30%
+Learning Rate: 0.000206
+
+Epoch [15/20]
+Training Epoch: 100%|██████████| 141/141 [03:17<00:00,  1.40s/it, loss=0.0825, acc=8.94%]
+Evaluating: 100%|██████████| 16/16 [00:13<00:00,  1.22it/s]
+Train Loss: 0.0825, Train Acc: 8.94%
+Val Loss:   4.3578, Val Acc:   9.30%
+Learning Rate: 0.000146
+
+Epoch [16/20]
+Training Epoch: 100%|██████████| 141/141 [03:12<00:00,  1.37s/it, loss=0.0824, acc=8.98%]
+Evaluating: 100%|██████████| 16/16 [00:13<00:00,  1.23it/s]
+Training Epoch:   0%|          | 0/141 [00:00<?, ?it/s]Train Loss: 0.0824, Train Acc: 8.98%
+Val Loss:   4.3572, Val Acc:   9.30%
+Learning Rate: 0.000095
+
+Epoch [17/20]
+Training Epoch: 100%|██████████| 141/141 [03:09<00:00,  1.34s/it, loss=0.0823, acc=8.91%]
+Evaluating: 100%|██████████| 16/16 [00:12<00:00,  1.24it/s]
+Train Loss: 0.0823, Train Acc: 8.91%
+Val Loss:   4.3566, Val Acc:   9.10%
+Learning Rate: 0.000054
+
+Epoch [18/20]
+Training Epoch: 100%|██████████| 141/141 [03:10<00:00,  1.35s/it, loss=0.0823, acc=8.90%]
+Evaluating: 100%|██████████| 16/16 [00:13<00:00,  1.21it/s]
+Train Loss: 0.0823, Train Acc: 8.90%
+Val Loss:   4.3564, Val Acc:   9.10%
+Learning Rate: 0.000024
+
+Epoch [19/20]
+Training Epoch: 100%|██████████| 141/141 [03:14<00:00,  1.38s/it, loss=0.0823, acc=8.94%]
+Evaluating: 100%|██████████| 16/16 [00:13<00:00,  1.21it/s]
+Training Epoch:   0%|          | 0/141 [00:00<?, ?it/s]Train Loss: 0.0823, Train Acc: 8.94%
+Val Loss:   4.3564, Val Acc:   9.10%
+Learning Rate: 0.000006
+
+Epoch [20/20]
+Training Epoch: 100%|██████████| 141/141 [03:15<00:00,  1.39s/it, loss=0.0823, acc=8.94%]
+Evaluating: 100%|██████████| 16/16 [00:13<00:00,  1.20it/s]
+Train Loss: 0.0823, Train Acc: 8.94%
+Val Loss:   4.3564, Val Acc:   9.10%
+Learning Rate: 0.000000
+
+
+Training completed! Best validation accuracy: 9.60%
