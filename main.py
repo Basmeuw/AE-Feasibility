@@ -69,7 +69,13 @@ def evaluate(model, loader, criterion, device):
     return running_loss / len(loader), 100. * correct / total
 
 
-def train( model, train_loader, test_loader, criterion, optimizer, scheduler, device, NUM_EPOCHS):
+def train(model, train_loader, test_loader, criterion, optimizer, scheduler, device, NUM_EPOCHS):
+    # Lists to store metrics for plotting
+    train_losses = []
+    test_losses = []
+    train_accuracies = []
+    test_accuracies = []
+
     # Training loop
     print("\nStarting training...\n")
     best_acc = 0.0
@@ -77,12 +83,20 @@ def train( model, train_loader, test_loader, criterion, optimizer, scheduler, de
     for epoch in range(NUM_EPOCHS):
         print(f"Epoch [{epoch + 1}/{NUM_EPOCHS}]")
 
-        train_loss, train_acc = train_epoch(model, train_loader, criterion,
-                                            optimizer, device)
+        # Train and Evaluate
+        train_loss, train_acc = train_epoch(model, train_loader, criterion, optimizer, device)
         test_loss, test_acc = evaluate(model, test_loader, criterion, device)
 
+        # Store metrics
+        train_losses.append(train_loss)
+        test_losses.append(test_loss)
+        train_accuracies.append(train_acc)
+        test_accuracies.append(test_acc)
+
+        # Step the scheduler
         scheduler.step()
 
+        # Print info
         print(f"Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.2f}%")
         print(f"Test Loss: {test_loss:.4f}, Test Acc: {test_acc:.2f}%")
         print(f"Learning Rate: {optimizer.param_groups[0]['lr']:.6f}\n")
@@ -106,6 +120,17 @@ def train( model, train_loader, test_loader, criterion, optimizer, scheduler, de
     model.load_state_dict(checkpoint['model_state_dict'])
     final_loss, final_acc = evaluate(model, test_loader, criterion, device)
     print(f"Final Test Accuracy: {final_acc:.2f}%")
+
+    # Return collected data
+    return {
+        'train_losses': train_losses,
+        'test_losses': test_losses,
+        'train_accuracies': train_accuracies,
+        'test_accuracies': test_accuracies,
+        'final_test_accuracy': final_acc
+    }
+
+
 
 def prepare_dataset(BATCH_SIZE):
     # Data augmentation and normalization
@@ -155,7 +180,7 @@ def prepare_dataset(BATCH_SIZE):
 
     return train_loader, test_loader, pretrain_loader, pretrain_val_loader
 
-def prepare_original_model(device):
+def prepare_original_model(num_classes, device):
     # Load pre-trained Vision Transformer B/32 (4x faster than B/16)
     print("\nLoading pre-trained Vision Transformer (ViT-B/32)...")
     # original_model = vit_b_32(weights=ViT_B_32_Weights.IMAGENET1K_V1)
@@ -172,11 +197,14 @@ def prepare_original_model(device):
 
     # Modify the classification head for CIFAR-100 (100 classes)
     # original_model.heads = nn.Linear(original_model.heads[0].in_features, NUM_CLASSES)
+
+    original_model.heads = nn.Linear(original_model.heads[0].in_features, num_classes)
+
     original_model.to(device)
 
     return original_model
 
-def prepare_bottleneck_model(bottleneck_dim, path, device):
+def prepare_bottleneck_model(num_classes, bottleneck_dim, path, device):
     # 1. Recreate architecture
     bottleneck = Bottleneck(embedding_dim=768, bottleneck_dim=bottleneck_dim)
 
@@ -201,17 +229,56 @@ def prepare_bottleneck_model(bottleneck_dim, path, device):
     bottleneck_model.load_pretrained_weights(ViT_B_32_Weights.IMAGENET1K_V1)
     # bottleneck_model.load_state_dict(ViT_B_32_Weights.IMAGENET1K_V1.get_state_dict(progress=True, check_hash=True))
     # bottleneck_model.heads = nn.Linear(bottleneck_model.heads[0].in_features, NUM_CLASSES)
+    bottleneck_model.heads = nn.Linear(bottleneck_model.heads[0].in_features, num_classes)
     bottleneck_model = bottleneck_model.to(device)
 
     return bottleneck_model
 
-def prepare_models(NUM_CLASSES, device):
+def prepare_models(num_classes, bottleneck_dim, bottleneck_path, device):
+    print("\nLoading pre-trained Vision Transformer (ViT-B/32)...")
+    # original_model = vit_b_32(weights=ViT_B_32_Weights.IMAGENET1K_V1)
+    original_model = VisionTransformer(image_size=224,
+                                       patch_size=32,
+                                       num_layers=12,
+                                       num_heads=12,
+                                       hidden_dim=768,
+                                       mlp_dim=3072,
+                                       num_classes=1000, )
 
-    original_model = prepare_original_model(device)
+    original_model.load_state_dict(ViT_B_32_Weights.IMAGENET1K_V1.get_state_dict(progress=True, check_hash=True),
+                                   strict=True)
 
-    bottleneck_model = prepare_bottleneck_model(768, "models/bottleneck_best_model_384.pth", device)
+    # Modify the classification head for CIFAR-100 (100 classes)
+    # original_model.heads = nn.Linear(original_model.heads[0].in_features, NUM_CLASSES)
+    original_model.to(device)
+
+    # 1. Recreate architecture
+    bottleneck = Bottleneck(embedding_dim=768, bottleneck_dim=bottleneck_dim)
+
+    # 2. Load pretrained weights
+    saved_model = torch.load(bottleneck_path, map_location=device)
+
+    bottleneck.load_state_dict(saved_model['model_state_dict'])
+
+    # 3. Create a deep copy (so each ViT has its own independent instance)
+    bottleneck_copy = copy.deepcopy(bottleneck)
+
+    bottleneck_model = BottleneckVisionTransformer(bottleneck_copy,
+                                                   image_size=224,
+                                                   patch_size=32,
+                                                   num_layers=12,
+                                                   num_heads=12,
+                                                   hidden_dim=768,
+                                                   mlp_dim=3072,
+                                                   num_classes=1000,
+                                                   )
+
+    bottleneck_model.load_pretrained_weights(ViT_B_32_Weights.IMAGENET1K_V1)
+    # bottleneck_model.load_state_dict(ViT_B_32_Weights.IMAGENET1K_V1.get_state_dict(progress=True, check_hash=True))
+    # bottleneck_model.heads = nn.Linear(bottleneck_model.heads[0].in_features, NUM_CLASSES)
+    bottleneck_model = bottleneck_model.to(device)
     # 1. Create ONE new classification head
-    new_head = nn.Linear(original_model.heads[0].in_features, NUM_CLASSES)
+    new_head = nn.Linear(original_model.heads[0].in_features, num_classes)
 
     # 2. Assign the EXACT SAME head to both models
     original_model.heads = new_head
@@ -235,8 +302,6 @@ def main():
     # bottleneck_model.heads = nn.Linear(original_model.heads[0].in_features, NUM_CLASSES)
 
 
-
-
     # Loss function and optimizer
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.AdamW(original_model.parameters(), lr=LEARNING_RATE, weight_decay=0.01)
@@ -251,7 +316,88 @@ def main():
     # retrieve_predictions(pretrain_loader, model , device)
 
 
+def finetune_original(device, lr=1e-4, batch_size=64, epochs=10, num_classes=100):
+    # Setup and Data Preparation
+    train_loader, test_loader, _, _ = prepare_dataset(batch_size)
+    original_model = prepare_original_model(num_classes, device)
 
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.AdamW(original_model.parameters(), lr=lr, weight_decay=0.01)
+    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)
+
+    # Training
+    training_data = train(
+        original_model,
+        train_loader,
+        test_loader,
+        criterion,
+        optimizer,
+        scheduler,
+        device,
+        epochs
+    )
+
+    # Plot Training Loss vs Validation Loss
+    plot_metrics(
+        train_data=training_data['train_losses'],
+        val_data=training_data['test_losses'],
+        metric_name='Loss',
+        title='Training vs Validation Loss (Finetuning)',
+        save_path='figures/loss_plot.png'
+    )
+
+    # Optionally, plot Training Accuracy vs Validation Accuracy
+    plot_metrics(
+        train_data=training_data['train_accuracies'],
+        val_data=training_data['test_accuracies'],
+        metric_name='Accuracy',
+        title='Training vs Validation Accuracy (Finetuning)',
+        save_path='figures/accuracy_plot.png'
+    )
+
+    print(f"\nFinetuning process complete with final test accuracy: {training_data['final_test_accuracy']:.2f}%")
+
+
+def finetune_bottleneck(device, lr=1e-4, batch_size=64, epochs=10, num_classes=100):
+    # Setup and Data Preparation
+    train_loader, test_loader, _, _ = prepare_dataset(batch_size)
+    original_model = prepare_bottleneck_model(num_classes, 384, "models/bottleneck_unsupervised_384.pth", device)
+
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.AdamW(original_model.parameters(), lr=lr, weight_decay=0.01)
+    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)
+
+    # Training
+    training_data = train(
+        original_model,
+        train_loader,
+        test_loader,
+        criterion,
+        optimizer,
+        scheduler,
+        device,
+        epochs
+    )
+
+    # Plot Training Loss vs Validation Loss
+    plot_metrics(
+        train_data=training_data['train_losses'],
+        val_data=training_data['test_losses'],
+        metric_name='Loss',
+        title='Training vs Validation Loss (Finetuning)',
+        save_path='figures/loss_plot.png'
+    )
+
+    # Optionally, plot Training Accuracy vs Validation Accuracy
+    plot_metrics(
+        train_data=training_data['train_accuracies'],
+        val_data=training_data['test_accuracies'],
+        metric_name='Accuracy',
+        title='Training vs Validation Accuracy (Finetuning)',
+        save_path='figures/accuracy_plot.png'
+    )
+
+    print(f"\nFinetuning process complete with final test accuracy: {training_data['final_test_accuracy']:.2f}%")
 
 def train_bottleneck_supervised(teacher, student: BottleneckVisionTransformer, pretrain_loader, pretrain_val_loader, device):
     pre_trained = torch.load("model_new_head.pth", map_location=device)
@@ -335,9 +481,6 @@ def train_bottleneck_supervised(teacher, student: BottleneckVisionTransformer, p
     plt.tight_layout()
     plt.savefig('figures/supervised_bottleneck_validation_loss.png')
     plt.show()
-
-
-
 
 def train_epoch_bottleneck_supervised(student, teacher, loader, optimizer, device):
     student.eval()  # Set student to training mode
@@ -449,8 +592,6 @@ def retrieve_predictions(pretrain_loader, model, device):
     torch.save(all_predictions.cpu(), 'processed_data/predictions10k.pt')
     return all_predictions  # (10000, 100)
 
-
-
 def split_dataset(dataset, val_fraction=0.2):
 # Get train indices for the split
     train_idx, val_idx = train_test_split(
@@ -466,6 +607,39 @@ def split_dataset(dataset, val_fraction=0.2):
 
     return train_dataset, pretrain_dataset
 
+
+def plot_metrics(train_data, val_data, metric_name, title, save_path=None):
+    """
+    General function to plot training and validation metrics over epochs.
+
+    Args:
+        train_data (list): List of training metric values (e.g., loss or accuracy).
+        val_data (list): List of validation metric values.
+        metric_name (str): Name of the metric (e.g., 'Loss', 'Accuracy').
+        title (str): Title of the plot.
+        save_path (str, optional): Path to save the plot. If None, it just displays.
+    """
+    plt.figure(figsize=(10, 6))
+    epochs = range(1, len(train_data) + 1)
+
+    # Plot Training Data
+    plt.plot(epochs, train_data, 'b-o', label=f'Training {metric_name}', linewidth=2)
+    # Plot Validation Data
+    plt.plot(epochs, val_data, 'r-o', label=f'Validation {metric_name}', linewidth=2)
+
+    plt.title(title, fontsize=16, fontweight='bold')
+    plt.xlabel('Epoch', fontsize=14)
+    plt.ylabel(metric_name, fontsize=14)
+    plt.legend(fontsize=12)
+    plt.grid(True, linestyle='--', alpha=0.7)
+    plt.xticks(epochs)  # Ensure all epochs are shown on the x-axis
+
+    if save_path:
+        plt.savefig(save_path)
+        print(f"\nPlot saved to {save_path}")
+
+    plt.show()
+
 if __name__ == '__main__':
     # Set device
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -474,4 +648,7 @@ if __name__ == '__main__':
     from unsupervised import train_bottleneck_unsupervised, retrieve_activations
     # retrieve_activations(device)
     # main()
-    train_bottleneck_unsupervised("bottleneck_unsupervised", device, epochs=100)
+    # train_bottleneck_unsupervised("bottleneck_unsupervised", device, epochs=100)
+
+    # finetune_original(device, lr=1e-4, batch_size=64, epochs=10, num_classes=100)
+    finetune_bottleneck(device, lr=1e-4, batch_size=64, epochs=10, num_classes=100)
