@@ -377,10 +377,10 @@ def finetune_original(device, name="finetune_original", lr=1e-4, batch_size=64, 
     return training_data
 
 
-def finetune_bottleneck(bottleneck_path, device, name="finetune_original", lr=1e-4, batch_size=64, epochs=10, num_classes=100):
+def finetune_bottleneck(bottleneck_path, device, name="finetune_original", bottleneck_dim = 384, lr=1e-4, batch_size=64, epochs=10, num_classes=100):
     # Setup and Data Preparation
     train_loader, val_loader, test_loader, _, _ = prepare_dataset(batch_size)
-    original_model = prepare_bottleneck_model(num_classes, 384, bottleneck_path, device)
+    original_model = prepare_bottleneck_model(num_classes, bottleneck_dim, bottleneck_path, device)
 
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.AdamW(original_model.parameters(), lr=lr, weight_decay=0.01)
@@ -695,12 +695,24 @@ if __name__ == '__main__':
     from unsupervised import train_bottleneck_unsupervised, retrieve_activations
     # retrieve_activations(device)
     # main()
-    # train_bottleneck_unsupervised("bottleneck_unsupervised_P16", "activations10k_16.pt", device, epochs=100)
+    train_bottleneck_unsupervised("bottleneck_unsupervised_P16", "activations10k_16.pt", device, bottleneck_dim=384, epochs=100)
+    # train_bottleneck_unsupervised("bottleneck_unsupervised_P16", "activations10k_16.pt", device, bottleneck_dim=96, epochs=100)
+    # train_bottleneck_unsupervised("bottleneck_unsupervised_P16", "activations10k_16.pt", device, bottleneck_dim=48, epochs=100)
 
 
     #
     #
-    finetune_bottleneck("models/bottleneck_unsupervised_P16_384.pth", name="bottleneckv2_P16_finetune_heads",  device=device,
-                        lr=5e-3, batch_size=64, epochs=10, num_classes=100)
+    finetune_bottleneck("models/bottleneck_unsupervised_P16_192.pth", name="bottleneckv2_P16_192_finetune_heads", bottleneck_dim=192, device=device,
+                        lr=1e-3, batch_size=64, epochs=10, num_classes=100)
 
-    finetune_original(device, name="original_v1_finetune_heads", lr=5e-3, batch_size=64, epochs=10, num_classes=100)
+
+    #
+    # finetune_bottleneck("models/bottleneck_unsupervised_P16_96.pth", name="bottleneckv2_P16_192_finetune_heads", bottleneck_dim=192,
+    #                     device=device,
+    #                     lr=5e-3, batch_size=64, epochs=10, num_classes=100)
+    #
+    # finetune_bottleneck("models/bottleneck_unsupervised_P16_48.pth", name="bottleneckv2_P16_192_finetune_heads", bottleneck_dim=192,
+    #                     device=device,
+    #                     lr=5e-3, batch_size=64, epochs=10, num_classes=100)
+    #
+    # finetune_original(device, name="original_v1_finetune_heads2", lr=5e-3, batch_size=64, epochs=10, num_classes=100)
