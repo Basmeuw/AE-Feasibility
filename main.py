@@ -327,113 +327,6 @@ def main():
     # retrieve_predictions(pretrain_loader, model , device)
 
 
-def finetune_original(device, name="finetune_original", patch_size=32, lr=1e-4, batch_size=64, epochs=10, num_classes=100):
-    # Setup and Data Preparation
-    train_loader, val_loader, test_loader, _, _ = prepare_dataset(batch_size)
-    original_model = prepare_original_model(num_classes, device, patch_size)
-
-    criterion = nn.CrossEntropyLoss()
-    optimizer = optim.AdamW(original_model.parameters(), lr=lr, weight_decay=0.01)
-    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)
-
-    for param in original_model.parameters():
-        param.requires_grad = False
-
-    for param in original_model.heads.parameters():
-        param.requires_grad = True
-
-
-    # Training
-    training_data = train(
-        original_model,
-        train_loader,
-        val_loader,
-        test_loader,
-        criterion,
-        optimizer,
-        scheduler,
-        device,
-        epochs
-    )
-
-    # Plot Training Loss vs Validation Loss
-    plot_metrics(
-        train_data=training_data['train_losses'],
-        val_data=training_data['val_losses'],
-        metric_name='Loss',
-        title='Training vs Validation Loss (Finetuning)',
-        save_path=f'figures/{name}_loss.png'
-    )
-
-    # Optionally, plot Training Accuracy vs Validation Accuracy
-    plot_metrics(
-        train_data=training_data['train_accuracies'],
-        val_data=training_data['val_accuracies'],
-        metric_name='Accuracy',
-        title='Training vs Validation Accuracy (Finetuning)',
-        save_path=f'figures/{name}_accuracy.png'
-    )
-
-    print(f"\nFinetuning process complete with final test accuracy: {training_data['final_test_accuracy']:.2f}%")
-
-    with open(f"results/{name}.json", "w") as f:
-        json.dump(training_data, f, indent=4)
-
-    return training_data
-
-
-def finetune_bottleneck(bottleneck_path, device, name="finetune_original", patch_size=32, bottleneck_dim = 384, lr=1e-4, batch_size=64, epochs=10, num_classes=100):
-    # Setup and Data Preparation
-    train_loader, val_loader, test_loader, _, _ = prepare_dataset(batch_size)
-    original_model = prepare_bottleneck_model(num_classes, bottleneck_dim, bottleneck_path, device, patch_size=patch_size)
-
-    criterion = nn.CrossEntropyLoss()
-    optimizer = optim.AdamW(original_model.parameters(), lr=lr, weight_decay=0.01)
-    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs, eta_min=3e-5)
-
-    original_model.freeze_except_bottleneck()
-
-    for param in original_model.heads.parameters():
-        param.requires_grad = True
-
-    # Training
-    training_data = train(
-        original_model,
-        train_loader,
-        val_loader,
-        test_loader,
-        criterion,
-        optimizer,
-        scheduler,
-        device,
-        epochs
-    )
-
-    # Plot Training Loss vs Validation Loss
-    plot_metrics(
-        train_data=training_data['train_losses'],
-        val_data=training_data['val_losses'],
-        metric_name='Loss',
-        title='Bottleneck ViT Training vs Validation Loss (Finetuning)',
-        save_path=f'figures/{name}_loss.png'
-    )
-
-    # Optionally, plot Training Accuracy vs Validation Accuracy
-    plot_metrics(
-        train_data=training_data['train_accuracies'],
-        val_data=training_data['val_accuracies'],
-        metric_name='Accuracy',
-        title='Bottleneck ViT Training vs Validation Accuracy (Finetuning)',
-        save_path=f'figures/{name}_accuracy.png'
-    )
-
-    print(f"\nFinetuning process complete with final test accuracy: {training_data['final_test_accuracy']:.2f}%")
-
-    with open(f"results/{name}.json", "w") as f:
-        json.dump(training_data, f, indent=4)
-
-    return training_data
-
 # wrapper function that takes care of storing the data
 def train_and_plot(model, criterion, optimizer, scheduler, params, device):
 
@@ -520,6 +413,48 @@ def finetune(params, device):
     return train_and_plot(model, criterion, optimizer, scheduler, params, device)
 
 
+def finetune_unfrozen(params, device):
+    slow_lr = 1e-4
+    fast_lr = 1e-3
+    min_anneal = 3 - 5
+
+    if params.bottleneck_path is not None:
+        model = prepare_bottleneck_model(params.num_classes, params.bottleneck_dim, params.bottleneck_path, device,
+                                         patch_size=params.patch_size)
+
+        if params.freeze_body: model.freeze_except_bottleneck()
+
+
+
+        for param in model.heads.parameters():
+            param.requires_grad = params.freeze_head
+
+        criterion = nn.CrossEntropyLoss()
+        optimizer = torch.optim.AdamW([
+            {'params': model.conv_proj.parameters(), 'lr': slow_lr},
+            {'params': model.encoder.parameters(), 'lr': slow_lr},
+            {'params': model.bottleneck.parameters(), 'lr': fast_lr},
+            {'params': model.heads.parameters(), 'lr': fast_lr}
+        ], weight_decay=0.01)
+        scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=params.epochs, eta_min=min_anneal)
+    else:
+        model = prepare_original_model(params.num_classes, device, patch_size=params.patch_size)
+
+        for param in model.parameters():
+            param.requires_grad = False
+
+        for param in model.heads.parameters():
+            param.requires_grad = params.freeze_head
+
+        criterion = nn.CrossEntropyLoss()
+        optimizer = torch.optim.AdamW([
+            {'params': model.conv_proj.parameters(), 'lr': slow_lr},
+            {'params': model.encoder.parameters(), 'lr': slow_lr},
+            {'params': model.heads.parameters(), 'lr': fast_lr}
+        ], weight_decay=0.01)
+        scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=params.epochs, eta_min=min_anneal)
+
+    return train_and_plot(model, criterion, optimizer, scheduler, params, device)
 
 
 def split_dataset(dataset, val_fraction=0.2):
@@ -617,7 +552,23 @@ if __name__ == '__main__':
         freeze_head=False,
     )
 
-    finetune(experiment_params, device)
+    # finetune(experiment_params, device)
+
+    experiment_params = Experiment(
+        title="unfrozen_bottleneck_8x",
+        bottleneck_path="models/bottleneck_unsupervised_P32_96.pth",
+        patch_size=32,
+        bottleneck_dim=96,
+        num_classes=100,
+        embed_dim=768,
+        batch_size=64,
+        epochs=5,
+        lr=1e-3, # not used
+        freeze_body=False,
+        freeze_head=False,
+    )
+
+    finetune_unfrozen(experiment_params, device)
 
     # params = {
     #     experiment_name: "bottleneck_P32_96_finetune_heads"
