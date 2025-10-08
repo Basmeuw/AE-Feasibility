@@ -114,6 +114,8 @@ def train(model, train_loader, val_loader, test_loader, criterion, optimizer, sc
             }, 'model_new_head.pth')
             print(f"✓ Saved best model with loss: {val_loss:.4f}, acc: {val_acc:.2f}%\n")
 
+            # plot_metrics(train_losses, val_losses, , val_accuracies)
+
     print(f"\nTraining completed! Best validation loss: {best_loss:.4f} , acc: {best_acc:.2f}%")
 
     # Load and evaluate best model
@@ -322,10 +324,10 @@ def main():
     # retrieve_predictions(pretrain_loader, model , device)
 
 
-def finetune_original(device, name="finetune_original", lr=1e-4, batch_size=64, epochs=10, num_classes=100):
+def finetune_original(device, name="finetune_original", patch_size=32, lr=1e-4, batch_size=64, epochs=10, num_classes=100):
     # Setup and Data Preparation
     train_loader, val_loader, test_loader, _, _ = prepare_dataset(batch_size)
-    original_model = prepare_original_model(num_classes, device)
+    original_model = prepare_original_model(num_classes, device, patch_size)
 
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.AdamW(original_model.parameters(), lr=lr, weight_decay=0.01)
@@ -377,10 +379,10 @@ def finetune_original(device, name="finetune_original", lr=1e-4, batch_size=64, 
     return training_data
 
 
-def finetune_bottleneck(bottleneck_path, device, name="finetune_original", bottleneck_dim = 384, lr=1e-4, batch_size=64, epochs=10, num_classes=100):
+def finetune_bottleneck(bottleneck_path, device, name="finetune_original", patch_size=32, bottleneck_dim = 384, lr=1e-4, batch_size=64, epochs=10, num_classes=100):
     # Setup and Data Preparation
     train_loader, val_loader, test_loader, _, _ = prepare_dataset(batch_size)
-    original_model = prepare_bottleneck_model(num_classes, bottleneck_dim, bottleneck_path, device)
+    original_model = prepare_bottleneck_model(num_classes, bottleneck_dim, bottleneck_path, device, patch_size=patch_size)
 
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.AdamW(original_model.parameters(), lr=lr, weight_decay=0.01)
@@ -648,7 +650,7 @@ def split_dataset(dataset, val_fraction=0.2):
     return train_dataset, val_dataset
 
 
-def plot_metrics(train_data, val_data, metric_name, title, save_path=None):
+def plot_metrics(train_data, val_data, metric_name, title, save_path=None, show=True):
     """
     General function to plot training and validation metrics over epochs.
 
@@ -677,8 +679,8 @@ def plot_metrics(train_data, val_data, metric_name, title, save_path=None):
     if save_path:
         plt.savefig(save_path)
         print(f"\nPlot saved to {save_path}")
-
-    plt.show()
+    if show:
+        plt.show()
 
 seed = 42
 
@@ -695,14 +697,15 @@ if __name__ == '__main__':
     from unsupervised import train_bottleneck_unsupervised, retrieve_activations
     # retrieve_activations(device)
     # main()
-    train_bottleneck_unsupervised("bottleneck_unsupervised_P16", "activations10k_16.pt", device, bottleneck_dim=384, epochs=100)
+    # train_bottleneck_unsupervised("bottleneck_unsupervised_P32", "activations10k", device, bottleneck_dim=96, epochs=50)
     # train_bottleneck_unsupervised("bottleneck_unsupervised_P16", "activations10k_16.pt", device, bottleneck_dim=96, epochs=100)
     # train_bottleneck_unsupervised("bottleneck_unsupervised_P16", "activations10k_16.pt", device, bottleneck_dim=48, epochs=100)
 
 
     #
     #
-    finetune_bottleneck("models/bottleneck_unsupervised_P16_192.pth", name="bottleneckv2_P16_192_finetune_heads", bottleneck_dim=192, device=device,
+    finetune_bottleneck("models/bottleneck_unsupervised_P32_96.pth", name="bottleneck_P32_96_finetune_heads",
+                        bottleneck_dim=96, device=device, patch_size=32,
                         lr=1e-3, batch_size=64, epochs=10, num_classes=100)
 
 
@@ -715,4 +718,4 @@ if __name__ == '__main__':
     #                     device=device,
     #                     lr=5e-3, batch_size=64, epochs=10, num_classes=100)
     #
-    # finetune_original(device, name="original_v1_finetune_heads2", lr=5e-3, batch_size=64, epochs=10, num_classes=100)
+    finetune_original(device, name="original_P32_finetune_heads2", lr=1e-3, batch_size=64, epochs=10, num_classes=100)

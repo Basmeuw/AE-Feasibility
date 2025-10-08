@@ -89,7 +89,7 @@ class ActivationsDataset(Dataset):
 
 def train_bottleneck_unsupervised(name, activations_path, device, epochs = 50, bottleneck_dim = 384):
 
-    activations = torch.load('processed_data/activations10k.pt')
+    activations = torch.load(f'processed_data/{activations_path}.pt')
     # print(activations.shape)
     # print(activations)
     dataset = ActivationsDataset(activations)
@@ -100,14 +100,12 @@ def train_bottleneck_unsupervised(name, activations_path, device, epochs = 50, b
     train_dataloader = DataLoader(train_dataset, batch_size=128, shuffle=True)
     val_dataloader = DataLoader(val_dataset, batch_size=128, shuffle=False)
 
-
-
-
     model = Bottleneck(768, bottleneck_dim)
     criterion = nn.MSELoss()
+    # criterion = nn.CosineEmbeddingLoss()
     # optimizer = optim.AdamW(model.parameters(), lr=1e-4, weight_decay=1e-6)
-    optimizer = optim.AdamW(model.parameters(), lr=1e-4, weight_decay=1e-6)
-    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)
+    optimizer = optim.AdamW(model.parameters(), lr=1e-3, weight_decay=1e-6)
+    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs, eta_min=5e-5)
     train_losses = []
     val_losses = []
 
@@ -147,9 +145,9 @@ def train_bottleneck_unsupervised(name, activations_path, device, epochs = 50, b
                 'optimizer_state_dict': optimizer.state_dict(),
                 'val_loss': val_loss,
             }, f'models/{name}_{bottleneck_dim}.pth')
-            print(f"Saved best model with val loss: {val_loss:.4f}\n")
+            print(f"Saved best model with val loss: {val_loss:.6f}\n")
 
-    print(f"\nTraining completed! Best val loss: {best_loss:.4f}")
+    print(f"\nTraining completed! Best val loss: {best_loss:.6f}")
     # use log scale
 
     plt.style.use('fivethirtyeight')
@@ -162,7 +160,7 @@ def train_bottleneck_unsupervised(name, activations_path, device, epochs = 50, b
     plt.title('Unsupervised Bottleneck Training Loss')
     plt.legend()
     plt.tight_layout()
-    plt.savefig('figures/unsupervised_bottleneck_training_loss.png')
+    plt.savefig(f'figures/unsupervised_bottleneck_training_loss_{bottleneck_dim}.png')
     plt.show()
 
 
@@ -190,8 +188,12 @@ def train_epoch_bottleneck(model, loader, criterion, optimizer, device):
     for inputs in pbar:
         inputs = inputs.to(device)
 
+        optimizer.zero_grad()
+
         reconstructed = model(inputs)
         loss = criterion(reconstructed, inputs)
+
+
         loss.backward()
         optimizer.step()
         losses.append(loss.item())
