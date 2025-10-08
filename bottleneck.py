@@ -2,13 +2,13 @@ from torch import nn
 import torch.nn.init as init
 
 class Bottleneck(nn.Module):
-    def __init__(self, embedding_dim, bottleneck_dim):
+    def __init__(self, embedding_dim, bottleneck_dim, dropout=0.01):
         super().__init__()
         self.bottleneck_dim = bottleneck_dim
         self.embedding_dim = embedding_dim
         self.fc1 = nn.Linear(embedding_dim, bottleneck_dim)
         self.ln1 = nn.LayerNorm(bottleneck_dim)
-        self.dropout = nn.Dropout(0.1)
+        self.dropout = nn.Dropout(dropout)
         self.fc2 = nn.Linear(bottleneck_dim, embedding_dim)
         self.ln2 = nn.LayerNorm(embedding_dim)
 
