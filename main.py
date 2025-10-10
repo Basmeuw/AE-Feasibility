@@ -83,12 +83,21 @@ def train(model, train_loader, val_loader, test_loader, criterion, optimizer, sc
     best_loss = float("inf")
     best_acc = 0.0
 
+    pre_train_epochs = 1
+
     for epoch in range(NUM_EPOCHS):
         print(f"Epoch [{epoch + 1}/{NUM_EPOCHS}]")
+
+        if epoch < pre_train_epochs:
+            model.freeze_except_bottleneck()
+        else:
+            model.unfreeze()
 
         # Train and Evaluate
         train_loss, train_acc = train_epoch(model, train_loader, criterion, optimizer, device)
         val_loss, val_acc = evaluate(model, val_loader, criterion, device)
+
+
 
         # Store metrics
         train_losses.append(train_loss)
@@ -97,7 +106,7 @@ def train(model, train_loader, val_loader, test_loader, criterion, optimizer, sc
         val_accuracies.append(val_acc)
 
         # Step the scheduler
-        # scheduler.step()
+        scheduler.step()
 
         # Print info
         print(f"Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.2f}%")
@@ -415,8 +424,8 @@ def finetune(params, device):
 
 def finetune_unfrozen(params, device):
     slow_lr = 1e-4
-    fast_lr = 1e-3
-    min_anneal = 3 - 5
+    fast_lr = 2e-3
+    min_anneal = 5e-5
 
     if params.bottleneck_path is not None:
         model = prepare_bottleneck_model(params.num_classes, params.bottleneck_dim, params.bottleneck_path, device,
@@ -530,7 +539,7 @@ if __name__ == '__main__':
     from unsupervised import train_bottleneck_unsupervised, retrieve_activations
     # retrieve_activations(device)
     # main()
-    # train_bottleneck_unsupervised("bottleneck_unsupervised_P32", "activations10k", device, bottleneck_dim=48, epochs=50)
+    # train_bottleneck_unsupervised("bottleneck_unsupervised_P32", "activations10k", device, bottleneck_dim=192, epochs=50)
     # train_bottleneck_unsupervised("bottleneck_unsupervised_P16", "activations10k_16.pt", device, bottleneck_dim=96, epochs=100)
     # train_bottleneck_unsupervised("bottleneck_unsupervised_P16", "activations10k_16.pt", device, bottleneck_dim=48, epochs=100)
 
@@ -555,14 +564,14 @@ if __name__ == '__main__':
     # finetune(experiment_params, device)
 
     experiment_params = Experiment(
-        title="unfrozen_bottleneck_8x",
-        bottleneck_path="models/bottleneck_unsupervised_P32_96.pth",
+        title="pretrain_unfrozen_bottleneck_4x",
+        desc="with 1 pretrain epoch, also with cosine anneal now",
+        bottleneck_path="models/bottleneck_unsupervised_P32_192.pth",
         patch_size=32,
-        bottleneck_dim=96,
-        num_classes=100,
+        bottleneck_dim=192,
         embed_dim=768,
         batch_size=64,
-        epochs=5,
+        epochs=10,
         lr=1e-3, # not used
         freeze_body=False,
         freeze_head=False,

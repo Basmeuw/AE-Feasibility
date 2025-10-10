@@ -1,9 +1,10 @@
 class Experiment:
 
-    def __init__(self, title="untitled", patch_size=16, num_classes=100, bottleneck_path=None,
+    def __init__(self, title="untitled", desc="", patch_size=16, num_classes=100, bottleneck_path=None,
                  embed_dim=768, batch_size=32,epochs = 10, lr = 1e-3, bottleneck_dim=384, freeze_head = False, freeze_body = True):
 
         self.title = title
+        self.desc = desc
         self.patch_size = patch_size
         self.bottleneck_dim = bottleneck_dim
         self.num_classes = num_classes

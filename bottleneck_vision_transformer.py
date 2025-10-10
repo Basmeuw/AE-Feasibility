@@ -62,6 +62,12 @@ class BottleneckVisionTransformer(VisionTransformer):
         for param in self.bottleneck.parameters():
             param.requires_grad = True
 
+        for param in self.heads.parameters():
+            param.requires_grad = True
+
+    def unfreeze(self):
+        for param in self.parameters():
+            param.requires_grad = True
 
     def load_pretrained_weights(self, pytorch_weights: WeightsEnum):
 
