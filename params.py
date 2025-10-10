@@ -1,7 +1,8 @@
 class Experiment:
 
     def __init__(self, title="untitled", desc="", patch_size=16, num_classes=100, bottleneck_path=None,
-                 embed_dim=768, batch_size=32,epochs = 10, lr = 1e-3, bottleneck_dim=384, freeze_head = False, freeze_body = True):
+                 embed_dim=768, batch_size=32,epochs = 10, lr = 1e-3, bottleneck_dim=384, freeze_head = False, freeze_body = True,
+                 pre_train = False, pre_train_epochs = 1):
 
         self.title = title
         self.desc = desc
@@ -25,6 +26,8 @@ class Experiment:
 
         self.freeze_head = freeze_head
         self.freeze_body = freeze_body
+        self.pre_train = pre_train
+        self.pre_train_epochs = pre_train_epochs
 
 
 

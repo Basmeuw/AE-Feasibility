@@ -71,7 +71,7 @@ def evaluate(model, loader, criterion, device):
     return running_loss / len(loader), 100. * correct / total
 
 
-def train(model, train_loader, val_loader, test_loader, criterion, optimizer, scheduler, device, NUM_EPOCHS):
+def train(model, train_loader, val_loader, test_loader, criterion, optimizer, scheduler, params, device, NUM_EPOCHS):
     # Lists to store metrics for plotting
     train_losses = []
     val_losses = []
@@ -83,15 +83,18 @@ def train(model, train_loader, val_loader, test_loader, criterion, optimizer, sc
     best_loss = float("inf")
     best_acc = 0.0
 
-    pre_train_epochs = 1
+    pre_train_epochs = 0
 
     for epoch in range(NUM_EPOCHS):
         print(f"Epoch [{epoch + 1}/{NUM_EPOCHS}]")
 
-        if epoch < pre_train_epochs:
-            model.freeze_except_bottleneck()
-        else:
-            model.unfreeze()
+        # If it is the original model, skip
+        if params.bottleneck_path is not None:
+            # Pre-train epoch logic
+            if epoch < pre_train_epochs:
+                model.freeze_except_bottleneck()
+            else:
+                model.unfreeze()
 
         # Train and Evaluate
         train_loss, train_acc = train_epoch(model, train_loader, criterion, optimizer, device)
@@ -339,12 +342,11 @@ def main():
 # wrapper function that takes care of storing the data
 def train_and_plot(model, criterion, optimizer, scheduler, params, device):
 
-
-
     # Convert Params instance to dict
     params_dict = params.__dict__
 
-    train_loader, val_loader, test_loader, _, _ = prepare_dataset(params.batch_size)
+
+    train_loader, val_loader, test_loader, pretrain_loader, pretrain_val_loader = prepare_dataset(params.batch_size)
 
     timestamp = datetime.now().strftime('%Y%m%d_%H%M')
     folder_path = 'runs/run_{}_{}'.format(timestamp, params.title)
@@ -356,7 +358,8 @@ def train_and_plot(model, criterion, optimizer, scheduler, params, device):
     with open(folder_path + '/params.json', 'w') as f:
         json.dump(params_dict, f, indent=4)
 
-
+    # if params.pretrained:
+    #     pass
 
     # Training
     training_data = train(
@@ -367,27 +370,18 @@ def train_and_plot(model, criterion, optimizer, scheduler, params, device):
         criterion,
         optimizer,
         scheduler,
+        params,
         device,
         params.epochs
     )
 
     # Plot Training Loss vs Validation Loss
-    plot_metrics(
-        train_data=training_data['train_losses'],
-        val_data=training_data['val_losses'],
-        metric_name='Loss',
-        title=f'ViT Training vs Validation Loss for {params.title}',
-        save_path=f'{folder_path}/figures/loss.png'
-    )
+    plot_metrics(train_data=training_data['train_losses'], val_data=training_data['val_losses'], metric_name='Loss',
+        title=f'ViT Training vs Validation Loss for {params.title}', save_path=f'{folder_path}/figures/loss.png')
 
     # Optionally, plot Training Accuracy vs Validation Accuracy
-    plot_metrics(
-        train_data=training_data['train_accuracies'],
-        val_data=training_data['val_accuracies'],
-        metric_name='Accuracy',
-        title=f'ViT Training vs Validation Loss for {params.title}',
-        save_path=f'{folder_path}/figures/accuracy.png'
-    )
+    plot_metrics(train_data=training_data['train_accuracies'], val_data=training_data['val_accuracies'], metric_name='Accuracy',
+                 title=f'ViT Training vs Validation Loss for {params.title}',save_path=f'{folder_path}/figures/accuracy.png')
 
     print(f"\nFinetuning process complete with final test accuracy: {training_data['final_test_accuracy']:.2f}%")
 
@@ -405,15 +399,15 @@ def finetune(params, device):
         if params.freeze_body: model.freeze_except_bottleneck()
 
         for param in model.heads.parameters():
-            param.requires_grad = params.freeze_head
+            param.requires_grad = not params.freeze_head
     else:
         model = prepare_original_model(params.num_classes, device, patch_size=params.patch_size)
 
         for param in model.parameters():
-            param.requires_grad = False
+            param.requires_grad = not params.freeze_body
 
         for param in model.heads.parameters():
-            param.requires_grad = params.freeze_head
+            param.requires_grad = not params.freeze_head
 
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.AdamW(model.parameters(), lr=params.lr, weight_decay=0.01)
@@ -464,6 +458,8 @@ def finetune_unfrozen(params, device):
         scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=params.epochs, eta_min=min_anneal)
 
     return train_and_plot(model, criterion, optimizer, scheduler, params, device)
+
+
 
 
 def split_dataset(dataset, val_fraction=0.2):
@@ -573,11 +569,28 @@ if __name__ == '__main__':
         batch_size=64,
         epochs=10,
         lr=1e-3, # not used
+        freeze_body=True,
+        freeze_head=False,
+    )
+
+    # finetune_unfrozen(experiment_params, device)
+
+    # BASELINE
+    experiment_params = Experiment(
+        title="baseline_P32_1e-4",
+        desc="baseline for patch 32 No head pretraining",
+        bottleneck_path=None,
+        patch_size=32,
+        bottleneck_dim=192,
+        embed_dim=768,
+        batch_size=64,
+        epochs=10,
+        lr=1e-4,  # not used
         freeze_body=False,
         freeze_head=False,
     )
 
-    finetune_unfrozen(experiment_params, device)
+    finetune(experiment_params, device)
 
     # params = {
     #     experiment_name: "bottleneck_P32_96_finetune_heads"
