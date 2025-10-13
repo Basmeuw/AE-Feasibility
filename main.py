@@ -126,7 +126,7 @@ def train(model, train_loader, val_loader, test_loader, criterion, optimizer, sc
                 'optimizer_state_dict': optimizer.state_dict(),
                 'val_loss': val_loss,
                 'val_acc': val_acc,
-            }, 'model_new_head.pth')
+            }, 'temp_model.pth')
             print(f"✓ Saved best model with loss: {val_loss:.4f}, acc: {val_acc:.2f}%\n")
 
             # plot_metrics(train_losses, val_losses, , val_accuracies)
@@ -135,7 +135,7 @@ def train(model, train_loader, val_loader, test_loader, criterion, optimizer, sc
 
     # Load and evaluate best model
     print("\nLoading best model for final evaluation...")
-    checkpoint = torch.load('model_new_head.pth')
+    checkpoint = torch.load('temp_model.pth')
     model.load_state_dict(checkpoint['model_state_dict'], strict=False)
     final_loss, final_acc = evaluate(model, test_loader, criterion, device)
     print(f"Final Test Accuracy: {final_acc:.2f}%")
@@ -147,7 +147,7 @@ def train(model, train_loader, val_loader, test_loader, criterion, optimizer, sc
         'val_losses': val_losses,
         'train_accuracies': train_accuracies,
         'val_accuracies': val_accuracies,
-    }
+    }, checkpoint
 
 
 
@@ -173,6 +173,7 @@ def prepare_dataset(BATCH_SIZE):
     print("Loading CIFAR-100 dataset...")
     train_dataset_full = datasets.CIFAR100(root='./data', train=True,
                                            download=True)
+
     test_dataset = datasets.CIFAR100(root='./data', train=False,
                                      download=True, transform=test_transform)
 
@@ -191,7 +192,7 @@ def prepare_dataset(BATCH_SIZE):
     val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False)
     test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False )
     pretrain_loader = DataLoader(pretrain_dataset, batch_size=BATCH_SIZE, shuffle=True)
-    pretrain_val_loader = DataLoader(pretrain_val_dataset, batch_size=BATCH_SIZE, shuffle=True)
+    pretrain_val_loader = DataLoader(pretrain_val_dataset, batch_size=BATCH_SIZE, shuffle=False)
 
     return train_loader, val_loader, test_loader, pretrain_loader, pretrain_val_loader
 
@@ -345,24 +346,26 @@ def train_and_plot(model, criterion, optimizer, scheduler, params, device):
     # Convert Params instance to dict
     params_dict = params.__dict__
 
+    is_bottleneck_model = params.bottleneck_path is not None
 
     train_loader, val_loader, test_loader, pretrain_loader, pretrain_val_loader = prepare_dataset(params.batch_size)
 
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M')
-    folder_path = 'runs/run_{}_{}'.format(timestamp, params.title)
-    os.makedirs(folder_path, exist_ok=True)
-    os.makedirs(os.path.join(folder_path, 'figures'), exist_ok=True)
-    figure_path = os.path.join(folder_path, 'figures')
+    if params.pre_train:
+        if is_bottleneck_model:
+            print("Freezing BN for pretraining")
+            model.freeze_except_bottleneck() # also unfreezes head
+            pre_train_optimizer = optim.AdamW(model.parameters(), lr=params.pre_train_lr, weight_decay=params.weight_decay)
+            pre_train_scheduler = optim.lr_scheduler.ConstantLR(pre_train_optimizer, factor=1.)
 
-    # Dump to JSON file
-    with open(folder_path + '/params.json', 'w') as f:
-        json.dump(params_dict, f, indent=4)
-
-    # if params.pretrained:
-    #     pass
+            pre_train_data, _ = train(model, pretrain_loader, pretrain_val_loader, pretrain_val_loader, criterion,
+                                   pre_train_optimizer, pre_train_scheduler, params, device, params.pre_train_epochs)
+            print("Pretraining finished, unfreezing model body now. Might need to switch back LR of BN model here")
+            model.unfreeze()
+        else:
+            pass # TODO
 
     # Training
-    training_data = train(
+    training_data, final_model_checkpoint = train(
         model,
         train_loader,
         val_loader,
@@ -375,6 +378,15 @@ def train_and_plot(model, criterion, optimizer, scheduler, params, device):
         params.epochs
     )
 
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M')
+    folder_path = 'runs/run_{}_{}'.format(timestamp, params.title)
+    os.makedirs(folder_path, exist_ok=True)
+    os.makedirs(os.path.join(folder_path, 'figures'), exist_ok=True)
+    figure_path = os.path.join(folder_path, 'figures')
+    # Dump to JSON file
+    with open(folder_path + '/params.json', 'w') as f:
+        json.dump(params_dict, f, indent=4)
+
     # Plot Training Loss vs Validation Loss
     plot_metrics(train_data=training_data['train_losses'], val_data=training_data['val_losses'], metric_name='Loss',
         title=f'ViT Training vs Validation Loss for {params.title}', save_path=f'{folder_path}/figures/loss.png')
@@ -384,6 +396,8 @@ def train_and_plot(model, criterion, optimizer, scheduler, params, device):
                  title=f'ViT Training vs Validation Loss for {params.title}',save_path=f'{folder_path}/figures/accuracy.png')
 
     print(f"\nFinetuning process complete with final test accuracy: {training_data['final_test_accuracy']:.2f}%")
+    if params.save_model:
+        torch.save(final_model_checkpoint, os.path.join(folder_path, 'final_model_checkpoint.pth'))
 
     with open(f"{folder_path}/results.json", "w") as f:
         json.dump(training_data, f, indent=4)
@@ -410,27 +424,37 @@ def finetune(params, device):
             param.requires_grad = not params.freeze_head
 
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.AdamW(model.parameters(), lr=params.lr, weight_decay=0.01)
-    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=params.epochs, eta_min=3e-5)
+    optimizer = optim.AdamW(model.parameters(), lr=params.bottleneck_finetune_lr, weight_decay=params.weight_decay)
+    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=params.epochs, eta_min=params.min_anneal)
 
     return train_and_plot(model, criterion, optimizer, scheduler, params, device)
 
 
 def finetune_unfrozen(params, device):
-    slow_lr = 1e-4
-    fast_lr = 2e-3
-    min_anneal = 5e-5
+    slow_lr = params.body_finetune_lr
+    fast_lr = params.bottleneck_finetune_lr
+    min_anneal = params.min_anneal
 
     if params.bottleneck_path is not None:
+        print("Using bottleneck model")
         model = prepare_bottleneck_model(params.num_classes, params.bottleneck_dim, params.bottleneck_path, device,
                                          patch_size=params.patch_size)
 
         if params.freeze_body: model.freeze_except_bottleneck()
 
+        # Freeze position embedding if it exists
+        if hasattr(model, 'pos_embedding'):
+            model.pos_embedding.requires_grad = not params.freeze_embeddings
 
+        # Freeze class token if it exists
+        if hasattr(model, 'class_token'):
+            model.class_token.requires_grad = not params.freeze_body
+
+        for param in model.conv_proj.parameters():
+            param.requires_grad = not params.freeze_embeddings
 
         for param in model.heads.parameters():
-            param.requires_grad = params.freeze_head
+            param.requires_grad = not params.freeze_head
 
         criterion = nn.CrossEntropyLoss()
         optimizer = torch.optim.AdamW([
@@ -438,23 +462,35 @@ def finetune_unfrozen(params, device):
             {'params': model.encoder.parameters(), 'lr': slow_lr},
             {'params': model.bottleneck.parameters(), 'lr': fast_lr},
             {'params': model.heads.parameters(), 'lr': fast_lr}
-        ], weight_decay=0.01)
+        ], weight_decay=params.weight_decay)
         scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=params.epochs, eta_min=min_anneal)
     else:
         model = prepare_original_model(params.num_classes, device, patch_size=params.patch_size)
 
-        for param in model.parameters():
-            param.requires_grad = False
+
+        for param in model.conv_proj.parameters():
+            param.requires_grad = not params.freeze_embeddings
+
+        for param in model.encoder.parameters():
+            param.requires_grad = not param.freeze_body
 
         for param in model.heads.parameters():
-            param.requires_grad = params.freeze_head
+            param.requires_grad = not params.freeze_head
+
+        # Freeze position embedding if it exists
+        if hasattr(model, 'pos_embedding'):
+            model.pos_embedding.requires_grad = not params.freeze_embeddings
+
+        # Freeze class token if it exists
+        if hasattr(model, 'class_token'):
+            model.class_token.requires_grad = not params.freeze_body
 
         criterion = nn.CrossEntropyLoss()
         optimizer = torch.optim.AdamW([
             {'params': model.conv_proj.parameters(), 'lr': slow_lr},
             {'params': model.encoder.parameters(), 'lr': slow_lr},
             {'params': model.heads.parameters(), 'lr': fast_lr}
-        ], weight_decay=0.01)
+        ], weight_decay=params.weight_decay)
         scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=params.epochs, eta_min=min_anneal)
 
     return train_and_plot(model, criterion, optimizer, scheduler, params, device)
@@ -524,7 +560,7 @@ seed = 42
 
 if __name__ == '__main__':
     # Set device
-    device = torch.device('cuda:1' if torch.cuda.is_available() else 'cpu')
+    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     print(f"Using device: {device}")
 
 
@@ -590,7 +626,77 @@ if __name__ == '__main__':
         freeze_head=False,
     )
 
-    finetune(experiment_params, device)
+    # finetune(experiment_params, device)
+
+    experiment_params = Experiment(
+        title="pos_embedding_frozen_embeddings_bottleneck",
+        desc="now the pos embedding token is also specifically frozen",
+        bottleneck_path="models/bottleneck_unsupervised_P32_192.pth",
+        patch_size=32,
+        bottleneck_dim=192,
+        batch_size=128,
+        epochs=5,
+        lr=1e-3,  # not used
+        freeze_body=False,
+        freeze_head=False,
+        freeze_embeddings=True,
+        pre_train=False,
+        pre_train_epochs=5,
+    )
+
+    # finetune_unfrozen(experiment_params, device)
+
+    experiment_params = Experiment(
+        title="bottleneck_8x",
+        desc="base setup with 8x",
+        bottleneck_path="models/bottleneck_unsupervised_P32_96.pth",
+        patch_size=32,
+        bottleneck_dim=96,
+        batch_size=128,
+        epochs=10,
+        lr=1e-3,  # not used
+        freeze_body=False,
+        freeze_head=False,
+        freeze_embeddings=False,
+        pre_train=False,
+    )
+
+    finetune_unfrozen(experiment_params, device)
+
+    experiment_params = Experiment(
+        title="bottleneck_16x",
+        desc="base setup with 16x",
+        bottleneck_path="models/bottleneck_unsupervised_P32_48.pth",
+        patch_size=32,
+        bottleneck_dim=48,
+        batch_size=128,
+        epochs=10,
+        lr=1e-3,  # not used
+        freeze_body=False,
+        freeze_head=False,
+        freeze_embeddings=False,
+        pre_train=False,
+    )
+
+    finetune_unfrozen(experiment_params, device)
+
+    # BASELINE
+    experiment_params = Experiment(
+        title="unfrozen_baseline_fixed_head_4x",
+        desc="same as unfrozen_bottleneck_fixed_head_4x, except without bottleneck",
+        bottleneck_path=None,
+        patch_size=32,
+        bottleneck_dim=192,
+        batch_size=128,
+        epochs=5,
+        lr=1e-4,  # not used
+        freeze_body=False,
+        freeze_head=False,
+        pre_train=False,
+        pre_train_epochs=5,
+    )
+
+    # finetune_unfrozen(experiment_params, device)
 
     # params = {
     #     experiment_name: "bottleneck_P32_96_finetune_heads"
