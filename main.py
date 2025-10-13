@@ -6,6 +6,7 @@ from datetime import datetime
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from numpy.f2py.auxfuncs import throw_error
 from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader, Dataset, random_split
 from torchvision import datasets, transforms
@@ -151,31 +152,59 @@ def train(model, train_loader, val_loader, test_loader, criterion, optimizer, sc
 
 
 
-def prepare_dataset(BATCH_SIZE):
-    # Data augmentation and normalization
-    train_transform = transforms.Compose([
-        transforms.Resize(224),
-        transforms.RandomCrop(224, padding=4),
-        transforms.RandomHorizontalFlip(),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.5071, 0.4867, 0.4408],
-                             std=[0.2675, 0.2565, 0.2761])
-    ])
+def prepare_dataset(params):
+    if params.dataset == 'CIFAR100':
+        # Load CIFAR-100 dataset
+        # Data augmentation and normalization
+        train_transform = transforms.Compose([
+            transforms.Resize(224),
+            transforms.RandomCrop(224, padding=4),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.5071, 0.4867, 0.4408],
+                                 std=[0.2675, 0.2565, 0.2761])
+        ])
 
-    test_transform = transforms.Compose([
-        transforms.Resize(224),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.5071, 0.4867, 0.4408],
-                             std=[0.2675, 0.2565, 0.2761])
-    ])
+        test_transform = transforms.Compose([
+            transforms.Resize(224),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.5071, 0.4867, 0.4408],
+                                 std=[0.2675, 0.2565, 0.2761])
+        ])
 
-    # Load CIFAR-100 dataset
-    print("Loading CIFAR-100 dataset...")
-    train_dataset_full = datasets.CIFAR100(root='./data', train=True,
-                                           download=True)
+        print("Loading CIFAR-100 dataset...")
+        train_dataset_full = datasets.CIFAR100(root='./data', train=True,
+                                               download=True)
 
-    test_dataset = datasets.CIFAR100(root='./data', train=False,
-                                     download=True, transform=test_transform)
+        test_dataset = datasets.CIFAR100(root='./data', train=False,
+                                         download=True, transform=test_transform)
+
+
+    elif params.dataset == 'CIFAR10':
+        print("Loading CIFAR-10 dataset...")
+        # Data augmentation and normalization
+        train_transform = transforms.Compose([
+            transforms.Resize(224),
+            transforms.RandomCrop(224, padding=4),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.4914, 0.4822, 0.4465],
+                                 std=[0.2470, 0.2435, 0.2616])
+        ])
+
+        test_transform = transforms.Compose([
+            transforms.Resize(224),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.4914, 0.4822, 0.4465],
+                                 std=[0.2470, 0.2435, 0.2616])
+        ])
+
+        train_dataset_full = datasets.CIFAR10(root='./data', train=True, download=True)
+        test_dataset = datasets.CIFAR10(root='./data', train=False, download=True, transform=test_transform)
+
+
+    else:
+        throw_error("unknown dataset!!")
 
     train_dataset2, val_dataset = split_dataset(train_dataset_full, 0.1)
 
@@ -185,14 +214,15 @@ def prepare_dataset(BATCH_SIZE):
 
     train_dataset.dataset.transform = train_transform
     val_dataset.dataset.transform = test_transform
+    # test_dataset.dataset.transform = test_transform
     pretrain_dataset.dataset.transform = train_transform
     pretrain_val_dataset.dataset.transform = test_transform
 
-    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False)
-    test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False )
-    pretrain_loader = DataLoader(pretrain_dataset, batch_size=BATCH_SIZE, shuffle=True)
-    pretrain_val_loader = DataLoader(pretrain_val_dataset, batch_size=BATCH_SIZE, shuffle=False)
+    train_loader = DataLoader(train_dataset, batch_size=params.batch_size, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=params.batch_size, shuffle=False)
+    test_loader = DataLoader(test_dataset, batch_size=params.batch_size, shuffle=False )
+    pretrain_loader = DataLoader(pretrain_dataset, batch_size=params.batch_size, shuffle=True)
+    pretrain_val_loader = DataLoader(pretrain_val_dataset, batch_size=params.batch_size, shuffle=False)
 
     return train_loader, val_loader, test_loader, pretrain_loader, pretrain_val_loader
 
@@ -320,34 +350,6 @@ def prepare_models(num_classes, bottleneck_dim, bottleneck_path, device):
 
     return original_model, bottleneck_model
 
-def main():
-
-
-    # Hyperparameters
-    BATCH_SIZE = 64
-    LEARNING_RATE = 1e-4
-    NUM_EPOCHS = 10
-    NUM_CLASSES = 100
-
-    train_loader, val_loader, test_loader, pretrain_loader, pretrain_val_loader = prepare_dataset(BATCH_SIZE)
-
-    original_model, bottleneck_model = prepare_models(NUM_CLASSES, device)
-
-    # bottleneck_model.heads = nn.Linear(original_model.heads[0].in_features, NUM_CLASSES)
-
-
-    # Loss function and optimizer
-    criterion = nn.CrossEntropyLoss()
-    optimizer = optim.AdamW(original_model.parameters(), lr=LEARNING_RATE, weight_decay=0.01)
-
-    # Learning rate scheduler
-    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=NUM_EPOCHS)
-
-    # train(original_model, pretrain_loader, pretrain_val_loader, criterion, optimizer, scheduler, device, NUM_EPOCHS)
-
-    # train_bottleneck_unsupervised(device, bottleneck_dim=384)
-    # train_bottleneck_supervised(original_model, bottleneck_model, pretrain_loader, pretrain_val_loader, device)
-    # retrieve_predictions(pretrain_loader, model , device)
 
 
 # wrapper function that takes care of storing the data
@@ -358,7 +360,7 @@ def train_and_plot(model, criterion, optimizer, scheduler, params, device):
 
     is_bottleneck_model = params.bottleneck_path is not None
 
-    train_loader, val_loader, test_loader, pretrain_loader, pretrain_val_loader = prepare_dataset(params.batch_size)
+    train_loader, val_loader, test_loader, pretrain_loader, pretrain_val_loader = prepare_dataset(params)
 
     if params.pre_train:
         if is_bottleneck_model:
@@ -414,36 +416,39 @@ def train_and_plot(model, criterion, optimizer, scheduler, params, device):
 
     return training_data
 
-def finetune(params, device):
-    # Setup and Data Preparation
-
-    if params.bottleneck_path is not None:
-        model = prepare_bottleneck_model(params.num_classes, params.bottleneck_dim, params.bottleneck_path, device, patch_size=params.patch_size)
-
-        if params.freeze_body: model.freeze_except_bottleneck()
-
-        for param in model.heads.parameters():
-            param.requires_grad = not params.freeze_head
-    else:
-        model = prepare_original_model(params.num_classes, device, patch_size=params.patch_size)
-
-        for param in model.parameters():
-            param.requires_grad = not params.freeze_body
-
-        for param in model.heads.parameters():
-            param.requires_grad = not params.freeze_head
-
-    criterion = nn.CrossEntropyLoss()
-    optimizer = optim.AdamW(model.parameters(), lr=params.bottleneck_finetune_lr, weight_decay=params.weight_decay)
-    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=params.epochs, eta_min=params.min_anneal)
-
-    return train_and_plot(model, criterion, optimizer, scheduler, params, device)
+# def finetune(params, device):
+#     # Setup and Data Preparation
+#
+#     if params.bottleneck_path is not None:
+#         model = prepare_bottleneck_model(params.num_classes, params.bottleneck_dim, params.bottleneck_path, device, patch_size=params.patch_size)
+#
+#         if params.freeze_body: model.freeze_except_bottleneck()
+#
+#         for param in model.heads.parameters():
+#             param.requires_grad = not params.freeze_head
+#     else:
+#         model = prepare_original_model(params.num_classes, device, patch_size=params.patch_size)
+#
+#         for param in model.parameters():
+#             param.requires_grad = not params.freeze_body
+#
+#         for param in model.heads.parameters():
+#             param.requires_grad = not params.freeze_head
+#
+#     criterion = nn.CrossEntropyLoss()
+#     optimizer = optim.AdamW(model.parameters(), lr=params.bottleneck_finetune_lr, weight_decay=params.weight_decay)
+#     scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=params.epochs, eta_min=params.min_anneal)
+#
+#     return train_and_plot(model, criterion, optimizer, scheduler, params, device)
 
 
 def finetune_unfrozen(params, device, parallel=False):
     slow_lr = params.body_finetune_lr
     fast_lr = params.bottleneck_finetune_lr
     min_anneal = params.min_anneal
+
+    print("Running experiment: ", params.title)
+    print("Description: ", params.desc)
 
     if params.bottleneck_path is not None:
         print("Using bottleneck model")
@@ -475,6 +480,7 @@ def finetune_unfrozen(params, device, parallel=False):
         ], weight_decay=params.weight_decay)
         scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=params.epochs, eta_min=min_anneal)
     else:
+        print("Using original model")
         model = prepare_original_model(params.num_classes, device, patch_size=params.patch_size, parallel=parallel)
 
 
@@ -572,6 +578,95 @@ def plot_metrics(train_data, val_data, metric_name, title, save_path=None, show=
 
 seed = 42
 
+def experiment_compression_vs_accuracy(dataset, device):
+    # BASELINE
+    experiment_params = Experiment(
+        title="cifar10_baseline",
+        desc="baseline on cifar10 with 5 epochs",
+        bottleneck_path=None,
+        patch_size=32,
+        batch_size=128,
+        epochs=5,
+        lr=1e-4,
+        freeze_body=False,
+        freeze_head=False,
+        pre_train=False,
+        dataset="CIFAR10",
+        num_classes=10,
+    )
+
+    # finetune_unfrozen(experiment_params, device)
+
+    experiment_params = Experiment(
+        title="cifar10_bottleneck_2x",
+        desc="base setup with 2x",
+        bottleneck_path="models/cifar10_bottleneck_unsupervised_P32_384.pth",
+        patch_size=32,
+        bottleneck_dim=384,
+        batch_size=128,
+        epochs=5,
+        lr=1e-3,  # not used
+        freeze_body=False,
+        freeze_head=False,
+        freeze_embeddings=False,
+        pre_train=False,
+    )
+
+    # finetune_unfrozen(experiment_params, device)
+
+    experiment_params = Experiment(
+        title="cifar10_bottleneck_4x",
+        desc="base setup with 4x",
+        bottleneck_path="models/cifar10_bottleneck_unsupervised_P32_192.pth",
+        patch_size=32,
+        bottleneck_dim=192,
+        batch_size=128,
+        epochs=5,
+        lr=1e-3,  # not used
+        freeze_body=False,
+        freeze_head=False,
+        freeze_embeddings=False,
+        pre_train=False,
+    )
+
+    finetune_unfrozen(experiment_params, device)
+
+    experiment_params = Experiment(
+        title="cifar10_bottleneck_8x",
+        desc="base setup with 8x",
+        bottleneck_path="models/cifar10_bottleneck_unsupervised_P32_96.pth",
+        patch_size=32,
+        bottleneck_dim=96,
+        batch_size=128,
+        epochs=5,
+        lr=1e-3,  # not used
+        freeze_body=False,
+        freeze_head=False,
+        freeze_embeddings=False,
+        pre_train=False,
+    )
+
+    finetune_unfrozen(experiment_params, device)
+
+    experiment_params = Experiment(
+        title="cifar10_bottleneck_16x",
+        desc="base setup with 16x",
+        bottleneck_path="models/cifar10_bottleneck_unsupervised_P32_48.pth",
+        patch_size=32,
+        bottleneck_dim=48,
+        batch_size=128,
+        epochs=5,
+        lr=1e-3,  # not used
+        freeze_body=False,
+        freeze_head=False,
+        freeze_embeddings=False,
+        pre_train=False,
+    )
+
+    finetune_unfrozen(experiment_params, device)
+
+
+
 if __name__ == '__main__':
     # Set device
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
@@ -583,9 +678,13 @@ if __name__ == '__main__':
     torch.manual_seed(seed)
 
     from unsupervised import train_bottleneck_unsupervised, retrieve_activations
+
     # retrieve_activations(device)
     # main()
-    train_bottleneck_unsupervised("bottleneck_unsupervised_P32", "activations10k", device, bottleneck_dim=384, epochs=50)
+    # train_bottleneck_unsupervised("cifar10_bottleneck_unsupervised_P32", "activations_cifar10", device, bottleneck_dim=48, epochs=50)
+    # train_bottleneck_unsupervised("cifar10_bottleneck_unsupervised_P32", "activations_cifar10", device, bottleneck_dim=96, epochs=50)
+    # train_bottleneck_unsupervised("cifar10_bottleneck_unsupervised_P32", "activations_cifar10", device, bottleneck_dim=192, epochs=50)
+    # train_bottleneck_unsupervised("cifar10_bottleneck_unsupervised_P32", "activations_cifar10", device, bottleneck_dim=384, epochs=50)
     # train_bottleneck_unsupervised("bottleneck_unsupervised_P16", "activations10k_16.pt", device, bottleneck_dim=96, epochs=100)
     # train_bottleneck_unsupervised("bottleneck_unsupervised_P16", "activations10k_16.pt", device, bottleneck_dim=48, epochs=100)
 
@@ -593,89 +692,8 @@ if __name__ == '__main__':
     #                     bottleneck_dim=96, device=device, patch_size=32,
     #                     lr=1e-3, batch_size=64, epochs=10, num_classes=100)
 
-    experiment_params = Experiment(
-        title="bottleneck_P32_48_finetune_heads",
-        bottleneck_path="models/bottleneck_unsupervised_P32_48.pth",
-        patch_size=32,
-        bottleneck_dim=48,
-        num_classes=100,
-        embed_dim=768,
-        batch_size=64,
-        epochs=5,
-        lr=1e-3,
-        freeze_body=True,
-        freeze_head=False,
-    )
 
-    # finetune(experiment_params, device)
-
-    experiment_params = Experiment(
-        title="pretrain_unfrozen_bottleneck_4x",
-        desc="with 1 pretrain epoch, also with cosine anneal now",
-        bottleneck_path="models/bottleneck_unsupervised_P32_192.pth",
-        patch_size=32,
-        bottleneck_dim=192,
-        embed_dim=768,
-        batch_size=64,
-        epochs=10,
-        lr=1e-3, # not used
-        freeze_body=True,
-        freeze_head=False,
-    )
-
-    # finetune_unfrozen(experiment_params, device)
-
-    # BASELINE
-    experiment_params = Experiment(
-        title="baseline_P32_1e-4",
-        desc="baseline for patch 32 No head pretraining",
-        bottleneck_path=None,
-        patch_size=32,
-        bottleneck_dim=192,
-        embed_dim=768,
-        batch_size=64,
-        epochs=10,
-        lr=1e-4,  # not used
-        freeze_body=False,
-        freeze_head=False,
-    )
-
-    # finetune(experiment_params, device)
-
-    experiment_params = Experiment(
-        title="pos_embedding_frozen_embeddings_bottleneck",
-        desc="now the pos embedding token is also specifically frozen",
-        bottleneck_path="models/bottleneck_unsupervised_P32_192.pth",
-        patch_size=32,
-        bottleneck_dim=192,
-        batch_size=128,
-        epochs=5,
-        lr=1e-3,  # not used
-        freeze_body=False,
-        freeze_head=False,
-        freeze_embeddings=True,
-        pre_train=False,
-        pre_train_epochs=5,
-    )
-
-    # finetune_unfrozen(experiment_params, device)
-
-    experiment_params = Experiment(
-        title="bottleneck_2x",
-        desc="base setup with 2x",
-        bottleneck_path="models/bottleneck_unsupervised_P32_384.pth",
-        patch_size=32,
-        bottleneck_dim=384,
-        batch_size=128,
-        epochs=10,
-        lr=1e-3,  # not used
-        freeze_body=False,
-        freeze_head=False,
-        freeze_embeddings=False,
-        pre_train=False,
-    )
-
-    finetune_unfrozen(experiment_params, device)
+    experiment_compression_vs_accuracy("CIFAR10", device)
 
     experiment_params = Experiment(
         title="bottleneck_16x",
@@ -696,18 +714,35 @@ if __name__ == '__main__':
 
     # BASELINE
     experiment_params = Experiment(
-        title="baseline",
-        desc="baseline with 10 epochs",
+        title="cifar10_baseline",
+        desc="baseline with 5 epochs",
         bottleneck_path=None,
         patch_size=32,
-        bottleneck_dim=192,
         batch_size=128,
-        epochs=10,
-        lr=1e-4,  # not used
+        epochs=5,
+        lr=1e-4,
         freeze_body=False,
         freeze_head=False,
         pre_train=False,
-        pre_train_epochs=5,
+        dataset="CIFAR10",
+        num_classes=10,
+    )
+
+    # finetune_unfrozen(experiment_params, device)
+
+    experiment_params = Experiment(
+        title="cifar10_bottleneck_2x",
+        desc="base setup with 2x",
+        bottleneck_path="models/bottleneck_unsupervised_P32_384.pth",
+        patch_size=32,
+        bottleneck_dim=384,
+        batch_size=128,
+        epochs=5,
+        lr=1e-3,  # not used
+        freeze_body=False,
+        freeze_head=False,
+        freeze_embeddings=False,
+        pre_train=False,
     )
 
     # finetune_unfrozen(experiment_params, device, parallel=True)

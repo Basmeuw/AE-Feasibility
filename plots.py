@@ -1,14 +1,10 @@
 import matplotlib.pyplot as plt
 import json
 import os
-
-import matplotlib.pyplot as plt
-import json
-import os
 import numpy as np
 
 
-# --- Helper Function: Data Loading ---
+# --- Helper Function: Data Loading (Kept separate as requested) ---
 
 def load_run_data(parent_folder):
     """
@@ -20,7 +16,6 @@ def load_run_data(parent_folder):
     """
     run_data = []
 
-    # Iterate over all items in the parent directory
     for run_folder_name in os.listdir(parent_folder):
         run_path = os.path.join(parent_folder, run_folder_name)
 
@@ -36,9 +31,7 @@ def load_run_data(parent_folder):
 
                     with open(results_file, 'r') as f:
                         results = json.load(f)
-                        # Assuming 'val_accuracies' is the standard epoch-based metric
                         val_accuracies = results.get('val_accuracies', [])
-                        # Assuming 'final_test_accuracy' is the standard final single metric
                         test_accuracy = results.get('final_test_accuracy')
 
                     if val_accuracies or test_accuracy is not None:
@@ -56,19 +49,11 @@ def load_run_data(parent_folder):
     return run_data
 
 
-# --- Function 1: Line Plot for Epoch-based Metrics (e.g., Validation Accuracy) ---
+# --- Function 1: Line Plot for Epoch-based Metrics (No Change) ---
 
 def plot_metric_from_runs(parent_folder, metric_name, title, save_path=None, show=True):
     """
     Plots a specified epoch-based metric for multiple runs using a line graph.
-    This function now loads data directly using the helper function.
-
-    Args:
-        parent_folder (str): Path to the parent directory containing run subfolders.
-        metric_name (str): The key in results.json (e.g., 'val_accuracies') to plot.
-        title (str): Title of the plot.
-        save_path (str, optional): Path to save the plot.
-        show (bool, optional): Whether to display the plot.
     """
     # Load all relevant data
     run_data = load_run_data(parent_folder)
@@ -78,7 +63,6 @@ def plot_metric_from_runs(parent_folder, metric_name, title, save_path=None, sho
     max_epochs = 0
 
     for run in run_data:
-        # Access the metric using the provided metric_name key
         metric_data = run.get(metric_name, [])
         run_title = run['title']
 
@@ -88,7 +72,6 @@ def plot_metric_from_runs(parent_folder, metric_name, title, save_path=None, sho
             plt.plot(epochs, metric_data, marker='o', linestyle='-', label=run_title, linewidth=2)
             max_epochs = max(max_epochs, len(epochs))
 
-    # Final plot setup and display
     if found_data:
         plt.title(title, fontsize=18, fontweight='bold')
         plt.xlabel('Epoch', fontsize=14)
@@ -108,11 +91,12 @@ def plot_metric_from_runs(parent_folder, metric_name, title, save_path=None, sho
         print(f"No metric data ('{metric_name}') found in the folder: {parent_folder}")
 
 
-# --- Function 2: Bar Plot for Single Final Metric (e.g., Final Test Accuracy) ---
+# --- Function 2: Bar Plot for Single Final Metric (Sorting Added) 🚀 ---
 
 def plot_final_metric_bar_chart(parent_folder, final_metric_key, title, save_path=None, show=True):
     """
-    Creates a bar chart to compare a single final metric across multiple runs.
+    Creates a bar chart to compare a single final metric across multiple runs,
+    sorted alphabetically by run title.
 
     Args:
         parent_folder (str): Path to the parent directory containing run subfolders.
@@ -124,29 +108,39 @@ def plot_final_metric_bar_chart(parent_folder, final_metric_key, title, save_pat
     # Load all relevant data
     run_data = load_run_data(parent_folder)
 
-    run_names = []
-    final_metrics = []
-
+    # Filter data to only include runs with the final metric
+    plot_data = []
     for run in run_data:
-        # Access the metric using the provided final_metric_key
         final_metric_value = run.get(final_metric_key)
-
         if final_metric_value is not None:
-            run_names.append(run['title'])
-            final_metrics.append(final_metric_value)
+            plot_data.append({
+                'title': run['title'],
+                'value': final_metric_value
+            })
+
+    # --- Sorting Step ---
+    # Sort the data alphabetically by the 'title' key
+    plot_data.sort(key=lambda x: x['title'])
+
+    # Separate sorted lists for plotting
+    run_names = [d['title'] for d in plot_data]
+    final_metrics = [d['value'] for d in plot_data]
 
     if final_metrics:
         plt.figure(figsize=(10, 6))
         y_pos = np.arange(len(run_names))
 
         plt.bar(y_pos, final_metrics, align='center', alpha=0.8, color='darkred')
+
+        # Use the now-sorted run_names for the x-ticks
         plt.xticks(y_pos, run_names, rotation=45, ha='right', fontsize=10)
+
         plt.ylabel(final_metric_key.replace('_', ' ').title(), fontsize=14)
         plt.title(title, fontsize=16, fontweight='bold')
 
         # Add text labels on top of the bars
         for i, val in enumerate(final_metrics):
-            plt.text(i, val * 1.01, f'{val:.2f}', ha='center', fontsize=10, fontweight='bold')
+            plt.text(i, val * 1.01, f'{val:.4f}', ha='center', fontsize=10, fontweight='bold')
 
         plt.tight_layout()
 
@@ -157,7 +151,6 @@ def plot_final_metric_bar_chart(parent_folder, final_metric_key, title, save_pat
             plt.show()
     else:
         print(f"No final metric data ('{final_metric_key}') found in the folder: {parent_folder}")
-
 # plot_metric_from_runs("useful_runs/compression_vs_acc", "val_accuracies", "Compression vs Accuracy Tradeoff", save_path="useful_runs/compression_vs_acc/results_val")
 # plot_metric_from_runs("useful_runs/compression_vs_acc", "train_accuracies", "Compression vs Accuracy Tradeoff", save_path="useful_runs/compression_vs_acc/results")
 # 1. Plot the epoch-based validation accuracy (Line Plot)

@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, Dataset
-
+from params import Experiment
 
 from tqdm import tqdm
 
@@ -17,9 +17,28 @@ from torchdistill.core.forward_hook import ForwardHookManager
 
 def retrieve_activations(device):
     # train_loader, test_loader, pretrain_loader, pretrain_val_loader =  prepare_dataset(64)
-    _, _, _, pretrain_loader, pretrain_val_loader =  prepare_dataset(64)
 
-    model = prepare_original_model(100, device)
+    # BASELINE
+    params = Experiment(
+        title="activation_retrieval",
+        desc="baseline with 10 epochs",
+        bottleneck_path=None,
+        patch_size=32,
+        bottleneck_dim=192,
+        batch_size=64,
+        epochs=10,
+        lr=1e-4,  # not used
+        freeze_body=False,
+        freeze_head=False,
+        pre_train=False,
+        pre_train_epochs=5,
+        num_classes=10,
+        dataset="CIFAR100"
+    )
+
+    _, _, _, pretrain_loader, pretrain_val_loader =  prepare_dataset(params)
+
+    model = prepare_original_model(params.num_classes, device, patch_size=params.patch_size)
 
     model.eval()
 
@@ -71,7 +90,7 @@ def retrieve_activations(device):
 
 
     print("All activation shape", all_activations.shape)
-    torch.save(all_activations.cpu(), 'processed_data/activations10k_16.pt')
+    torch.save(all_activations.cpu(), 'processed_data/activations_cifar10.pt')
     return all_activations  # (10000, 49, 768) for P=32
 
 
