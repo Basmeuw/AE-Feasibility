@@ -15,26 +15,9 @@ import matplotlib.pyplot as plt
 from main import prepare_dataset, prepare_original_model, split_dataset
 from torchdistill.core.forward_hook import ForwardHookManager
 
-def retrieve_activations(device):
+def retrieve_activations(params, device):
     # train_loader, test_loader, pretrain_loader, pretrain_val_loader =  prepare_dataset(64)
 
-    # BASELINE
-    params = Experiment(
-        title="activation_retrieval",
-        desc="baseline with 10 epochs",
-        bottleneck_path=None,
-        patch_size=32,
-        bottleneck_dim=192,
-        batch_size=64,
-        epochs=10,
-        lr=1e-4,  # not used
-        freeze_body=False,
-        freeze_head=False,
-        pre_train=False,
-        pre_train_epochs=5,
-        num_classes=10,
-        dataset="CIFAR100"
-    )
 
     _, _, _, pretrain_loader, pretrain_val_loader =  prepare_dataset(params)
 
@@ -90,7 +73,7 @@ def retrieve_activations(device):
 
 
     print("All activation shape", all_activations.shape)
-    torch.save(all_activations.cpu(), 'processed_data/activations_cifar10.pt')
+    torch.save(all_activations.cpu(), f'processed_data/activations_{params.title}.pt')
     return all_activations  # (10000, 49, 768) for P=32
 
 

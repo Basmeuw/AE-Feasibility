@@ -179,6 +179,9 @@ def prepare_dataset(params):
         test_dataset = datasets.CIFAR100(root='./data', train=False,
                                          download=True, transform=test_transform)
 
+        train_dataset2, val_dataset = split_dataset(train_dataset_full, 0.1)
+        val_dataset.dataset.transform = test_transform
+
 
     elif params.dataset == 'CIFAR10':
         print("Loading CIFAR-10 dataset...")
@@ -202,18 +205,53 @@ def prepare_dataset(params):
         train_dataset_full = datasets.CIFAR10(root='./data', train=True, download=True)
         test_dataset = datasets.CIFAR10(root='./data', train=False, download=True, transform=test_transform)
 
+        train_dataset2, val_dataset = split_dataset(train_dataset_full, 0.1)
+        val_dataset.dataset.transform = test_transform
+
+    elif params.dataset == "TinyImageNet":
+        print("Loading TinyImageNet dataset...")
+        # ImageNet mean and std (for pretrained ViT normalization)
+        imagenet_mean = [0.485, 0.456, 0.406]
+        imagenet_std = [0.229, 0.224, 0.225]
+
+        # --- Data augmentation and normalization ---
+        train_transform = transforms.Compose([
+            transforms.Resize(256),  # Resize shorter side to 256
+            transforms.RandomCrop(224),  # Random crop to 224×224
+            transforms.RandomHorizontalFlip(),  # Data augmentation
+            transforms.ToTensor(),
+            transforms.Normalize(mean=imagenet_mean, std=imagenet_std)
+        ])
+
+        test_transform = transforms.Compose([
+            transforms.Resize(256),
+            transforms.CenterCrop(224),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=imagenet_mean, std=imagenet_std)
+        ])
+
+        # --- Datasets ---
+        data_dir = './data/tiny-imagenet-200'
+
+        train_dataset_full = datasets.ImageFolder(root=f'{data_dir}/train', transform=train_transform)
+        test_dataset = datasets.ImageFolder(root=f'{data_dir}/val', transform=test_transform)
+        # test_dataset = datasets.ImageFolder(root=f'{data_dir}/test', transform=test_transform)
+
+        train_dataset2, val_dataset = split_dataset(train_dataset_full, 0.1)
+        val_dataset.dataset.transform = test_transform
+
+        print(f"Tiny ImageNet loaded: {len(train_dataset2)} train, {len(val_dataset)} val samples.")
 
     else:
         throw_error("unknown dataset!!")
 
-    train_dataset2, val_dataset = split_dataset(train_dataset_full, 0.1)
 
     train_dataset, pretrain_dataset = split_dataset(train_dataset2, 0.2)
 
     pretrain_dataset, pretrain_val_dataset = split_dataset(pretrain_dataset, val_fraction=0.1)
 
     train_dataset.dataset.transform = train_transform
-    val_dataset.dataset.transform = test_transform
+
     # test_dataset.dataset.transform = test_transform
     pretrain_dataset.dataset.transform = train_transform
     pretrain_val_dataset.dataset.transform = test_transform
@@ -223,6 +261,7 @@ def prepare_dataset(params):
     test_loader = DataLoader(test_dataset, batch_size=params.batch_size, shuffle=False )
     pretrain_loader = DataLoader(pretrain_dataset, batch_size=params.batch_size, shuffle=True)
     pretrain_val_loader = DataLoader(pretrain_val_dataset, batch_size=params.batch_size, shuffle=False)
+
 
     return train_loader, val_loader, test_loader, pretrain_loader, pretrain_val_loader
 
@@ -578,6 +617,120 @@ def plot_metrics(train_data, val_data, metric_name, title, save_path=None, show=
 
 seed = 42
 
+def experiment_compression_vs_accuracy_img_net(device):
+    # BASELINE
+    retrieval_params = Experiment(
+        title="TinyImageNet",
+        desc="retrieve activations from imagenet",
+        bottleneck_path=None,
+        patch_size=32,
+        batch_size=64,
+        num_classes=200,
+        dataset="TinyImageNet"
+    )
+
+    # retrieve_activations(retrieval_params, device)
+    #
+    # train_bottleneck_unsupervised("TinyImageNet_bottleneck_unsupervised_P32", "activations_TinyImageNet", device, bottleneck_dim=48, epochs=50)
+    # train_bottleneck_unsupervised("TinyImageNet_bottleneck_unsupervised_P32", "activations_TinyImageNet", device, bottleneck_dim=96, epochs=50)
+    # train_bottleneck_unsupervised("TinyImageNet_bottleneck_unsupervised_P32", "activations_TinyImageNet", device, bottleneck_dim=192, epochs=50)
+    # train_bottleneck_unsupervised("TinyImageNet_bottleneck_unsupervised_P32", "activations_TinyImageNet", device, bottleneck_dim=384, epochs=50)
+
+    # BASELINE
+    experiment_params = Experiment(
+        title="TinyImageNet_baseline",
+        desc="baseline on tiny_image_net with 5 epochs",
+        bottleneck_path=None,
+        patch_size=32,
+        batch_size=384,
+        epochs=5,
+        lr=1e-4,
+        freeze_body=False,
+        freeze_head=False,
+        pre_train=False,
+        dataset="TinyImageNet",
+        num_classes=200,
+    )
+
+    # finetune_unfrozen(experiment_params, device)
+
+    experiment_params = Experiment(
+        title="TinyImageNet_bottleneck_2x",
+        desc="base setup with 2x",
+        bottleneck_path="models/TinyImageNet_bottleneck_unsupervised_P32_384.pth",
+        patch_size=32,
+        bottleneck_dim=384,
+        batch_size=384,
+        epochs=5,
+        lr=1e-3,  # not used
+        freeze_body=False,
+        freeze_head=False,
+        freeze_embeddings=False,
+        dataset="TinyImageNet",
+        num_classes=200,
+        pre_train=False,
+    )
+
+    # finetune_unfrozen(experiment_params, device)
+
+    experiment_params = Experiment(
+        title="TinyImageNet_bottleneck_4x",
+        desc="base setup with 4x",
+        bottleneck_path="models/TinyImageNet_bottleneck_unsupervised_P32_192.pth",
+        patch_size=32,
+        bottleneck_dim=192,
+        batch_size=384,
+        epochs=5,
+        lr=1e-3,  # not used
+        freeze_body=False,
+        freeze_head=False,
+        freeze_embeddings=False,
+        dataset="TinyImageNet",
+        num_classes=200,
+        pre_train=False,
+    )
+
+    # finetune_unfrozen(experiment_params, device)
+
+    experiment_params = Experiment(
+        title="TinyImageNet_bottleneck_8x",
+        desc="base setup with 8x",
+        bottleneck_path="models/TinyImageNet_bottleneck_unsupervised_P32_96.pth",
+        patch_size=32,
+        bottleneck_dim=96,
+        batch_size=384,
+        epochs=5,
+        lr=1e-3,  # not used
+        freeze_body=False,
+        freeze_head=False,
+        freeze_embeddings=False,
+        dataset="TinyImageNet",
+        num_classes=200,
+        pre_train=False,
+    )
+
+    # finetune_unfrozen(experiment_params, device)
+
+    experiment_params = Experiment(
+        title="TinyImageNet_bottleneck_16x",
+        desc="base setup with 16x",
+        bottleneck_path="models/TinyImageNet_bottleneck_unsupervised_P32_48.pth",
+        patch_size=32,
+        bottleneck_dim=48,
+        batch_size=384,
+        epochs=5,
+        lr=1e-3,  # not used
+        freeze_body=False,
+        freeze_head=False,
+        freeze_embeddings=False,
+        dataset="TinyImageNet",
+        num_classes=200,
+        pre_train=False,
+    )
+
+    finetune_unfrozen(experiment_params, device)
+
+
 def experiment_compression_vs_accuracy(dataset, device):
     # BASELINE
     experiment_params = Experiment(
@@ -586,7 +739,7 @@ def experiment_compression_vs_accuracy(dataset, device):
         bottleneck_path=None,
         patch_size=32,
         batch_size=128,
-        epochs=5,
+        epochs=10,
         lr=1e-4,
         freeze_body=False,
         freeze_head=False,
@@ -595,7 +748,7 @@ def experiment_compression_vs_accuracy(dataset, device):
         num_classes=10,
     )
 
-    # finetune_unfrozen(experiment_params, device)
+    finetune_unfrozen(experiment_params, device)
 
     experiment_params = Experiment(
         title="cifar10_bottleneck_2x",
@@ -604,15 +757,17 @@ def experiment_compression_vs_accuracy(dataset, device):
         patch_size=32,
         bottleneck_dim=384,
         batch_size=128,
-        epochs=5,
+        epochs=10,
         lr=1e-3,  # not used
         freeze_body=False,
         freeze_head=False,
         freeze_embeddings=False,
+        dataset="CIFAR10",
+        num_classes=10,
         pre_train=False,
     )
 
-    # finetune_unfrozen(experiment_params, device)
+    finetune_unfrozen(experiment_params, device)
 
     experiment_params = Experiment(
         title="cifar10_bottleneck_4x",
@@ -621,11 +776,13 @@ def experiment_compression_vs_accuracy(dataset, device):
         patch_size=32,
         bottleneck_dim=192,
         batch_size=128,
-        epochs=5,
+        epochs=10,
         lr=1e-3,  # not used
         freeze_body=False,
         freeze_head=False,
         freeze_embeddings=False,
+        dataset="CIFAR10",
+        num_classes=10,
         pre_train=False,
     )
 
@@ -638,11 +795,13 @@ def experiment_compression_vs_accuracy(dataset, device):
         patch_size=32,
         bottleneck_dim=96,
         batch_size=128,
-        epochs=5,
+        epochs=10,
         lr=1e-3,  # not used
         freeze_body=False,
         freeze_head=False,
         freeze_embeddings=False,
+        dataset="CIFAR10",
+        num_classes=10,
         pre_train=False,
     )
 
@@ -655,15 +814,17 @@ def experiment_compression_vs_accuracy(dataset, device):
         patch_size=32,
         bottleneck_dim=48,
         batch_size=128,
-        epochs=5,
+        epochs=10,
         lr=1e-3,  # not used
         freeze_body=False,
         freeze_head=False,
         freeze_embeddings=False,
+        dataset="CIFAR10",
+        num_classes=10,
         pre_train=False,
     )
 
-    finetune_unfrozen(experiment_params, device)
+    # finetune_unfrozen(experiment_params, device)
 
 
 
@@ -680,7 +841,7 @@ if __name__ == '__main__':
     from unsupervised import train_bottleneck_unsupervised, retrieve_activations
 
     # retrieve_activations(device)
-    # main()
+    #
     # train_bottleneck_unsupervised("cifar10_bottleneck_unsupervised_P32", "activations_cifar10", device, bottleneck_dim=48, epochs=50)
     # train_bottleneck_unsupervised("cifar10_bottleneck_unsupervised_P32", "activations_cifar10", device, bottleneck_dim=96, epochs=50)
     # train_bottleneck_unsupervised("cifar10_bottleneck_unsupervised_P32", "activations_cifar10", device, bottleneck_dim=192, epochs=50)
@@ -693,7 +854,8 @@ if __name__ == '__main__':
     #                     lr=1e-3, batch_size=64, epochs=10, num_classes=100)
 
 
-    experiment_compression_vs_accuracy("CIFAR10", device)
+    # experiment_compression_vs_accuracy("CIFAR10", device)
+    experiment_compression_vs_accuracy_img_net(device)
 
     experiment_params = Experiment(
         title="bottleneck_16x",
