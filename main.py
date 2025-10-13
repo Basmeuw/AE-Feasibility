@@ -126,7 +126,7 @@ def train(model, train_loader, val_loader, test_loader, criterion, optimizer, sc
                 'optimizer_state_dict': optimizer.state_dict(),
                 'val_loss': val_loss,
                 'val_acc': val_acc,
-            }, 'temp_model.pth')
+            }, f'models/temp/{params.title}.pth')
             print(f"✓ Saved best model with loss: {val_loss:.4f}, acc: {val_acc:.2f}%\n")
 
             # plot_metrics(train_losses, val_losses, , val_accuracies)
@@ -135,7 +135,7 @@ def train(model, train_loader, val_loader, test_loader, criterion, optimizer, sc
 
     # Load and evaluate best model
     print("\nLoading best model for final evaluation...")
-    checkpoint = torch.load('temp_model.pth')
+    checkpoint = torch.load(f'models/temp/{params.title}.pth')
     model.load_state_dict(checkpoint['model_state_dict'], strict=False)
     final_loss, final_acc = evaluate(model, test_loader, criterion, device)
     print(f"Final Test Accuracy: {final_acc:.2f}%")
@@ -196,7 +196,7 @@ def prepare_dataset(BATCH_SIZE):
 
     return train_loader, val_loader, test_loader, pretrain_loader, pretrain_val_loader
 
-def prepare_original_model(num_classes, device, patch_size=16):
+def prepare_original_model(num_classes, device, parallel=False, patch_size=16):
     # Load pre-trained Vision Transformer B/32 (4x faster than B/16)
     print(f"\nLoading pre-trained Vision Transformer (ViT-B/{16})...")
     # original_model = vit_b_32(weights=ViT_B_32_Weights.IMAGENET1K_V1)
@@ -221,11 +221,15 @@ def prepare_original_model(num_classes, device, patch_size=16):
 
     original_model.heads = nn.Linear(original_model.heads[0].in_features, num_classes)
 
+    if parallel:
+        original_model = nn.DataParallel(original_model)
+
     original_model.to(device)
+    m = original_model.module if hasattr(original_model, "module") else original_model
 
-    return original_model
+    return m
 
-def prepare_bottleneck_model(num_classes, bottleneck_dim, path, device, patch_size=16):
+def prepare_bottleneck_model(num_classes, bottleneck_dim, path, device, parallel=False, patch_size=16):
     # 1. Recreate architecture
     bottleneck = Bottleneck(embedding_dim=768, bottleneck_dim=bottleneck_dim)
 
@@ -254,9 +258,15 @@ def prepare_bottleneck_model(num_classes, bottleneck_dim, path, device, patch_si
     # bottleneck_model.load_state_dict(ViT_B_32_Weights.IMAGENET1K_V1.get_state_dict(progress=True, check_hash=True))
     # bottleneck_model.heads = nn.Linear(bottleneck_model.heads[0].in_features, NUM_CLASSES)
     bottleneck_model.heads = nn.Linear(bottleneck_model.heads[0].in_features, num_classes)
+
+    if parallel:
+        bottleneck_model = nn.DataParallel(bottleneck_model)
+
     bottleneck_model = bottleneck_model.to(device)
 
-    return bottleneck_model
+    m = bottleneck_model.module if hasattr(bottleneck_model, "module") else bottleneck_model
+
+    return m
 
 def prepare_models(num_classes, bottleneck_dim, bottleneck_path, device):
     print("\nLoading pre-trained Vision Transformer (ViT-B/32)...")
@@ -430,7 +440,7 @@ def finetune(params, device):
     return train_and_plot(model, criterion, optimizer, scheduler, params, device)
 
 
-def finetune_unfrozen(params, device):
+def finetune_unfrozen(params, device, parallel=False):
     slow_lr = params.body_finetune_lr
     fast_lr = params.bottleneck_finetune_lr
     min_anneal = params.min_anneal
@@ -438,7 +448,7 @@ def finetune_unfrozen(params, device):
     if params.bottleneck_path is not None:
         print("Using bottleneck model")
         model = prepare_bottleneck_model(params.num_classes, params.bottleneck_dim, params.bottleneck_path, device,
-                                         patch_size=params.patch_size)
+                                         patch_size=params.patch_size, parallel=parallel)
 
         if params.freeze_body: model.freeze_except_bottleneck()
 
@@ -465,14 +475,14 @@ def finetune_unfrozen(params, device):
         ], weight_decay=params.weight_decay)
         scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=params.epochs, eta_min=min_anneal)
     else:
-        model = prepare_original_model(params.num_classes, device, patch_size=params.patch_size)
+        model = prepare_original_model(params.num_classes, device, patch_size=params.patch_size, parallel=parallel)
 
 
         for param in model.conv_proj.parameters():
             param.requires_grad = not params.freeze_embeddings
 
         for param in model.encoder.parameters():
-            param.requires_grad = not param.freeze_body
+            param.requires_grad = not params.freeze_body
 
         for param in model.heads.parameters():
             param.requires_grad = not params.freeze_head
@@ -556,6 +566,10 @@ def plot_metrics(train_data, val_data, metric_name, title, save_path=None, show=
     if show:
         plt.show()
 
+
+
+
+
 seed = 42
 
 if __name__ == '__main__':
@@ -571,7 +585,7 @@ if __name__ == '__main__':
     from unsupervised import train_bottleneck_unsupervised, retrieve_activations
     # retrieve_activations(device)
     # main()
-    # train_bottleneck_unsupervised("bottleneck_unsupervised_P32", "activations10k", device, bottleneck_dim=192, epochs=50)
+    train_bottleneck_unsupervised("bottleneck_unsupervised_P32", "activations10k", device, bottleneck_dim=384, epochs=50)
     # train_bottleneck_unsupervised("bottleneck_unsupervised_P16", "activations10k_16.pt", device, bottleneck_dim=96, epochs=100)
     # train_bottleneck_unsupervised("bottleneck_unsupervised_P16", "activations10k_16.pt", device, bottleneck_dim=48, epochs=100)
 
@@ -647,11 +661,11 @@ if __name__ == '__main__':
     # finetune_unfrozen(experiment_params, device)
 
     experiment_params = Experiment(
-        title="bottleneck_8x",
-        desc="base setup with 8x",
-        bottleneck_path="models/bottleneck_unsupervised_P32_96.pth",
+        title="bottleneck_2x",
+        desc="base setup with 2x",
+        bottleneck_path="models/bottleneck_unsupervised_P32_384.pth",
         patch_size=32,
-        bottleneck_dim=96,
+        bottleneck_dim=384,
         batch_size=128,
         epochs=10,
         lr=1e-3,  # not used
@@ -678,17 +692,17 @@ if __name__ == '__main__':
         pre_train=False,
     )
 
-    finetune_unfrozen(experiment_params, device)
+    # finetune_unfrozen(experiment_params, device)
 
     # BASELINE
     experiment_params = Experiment(
-        title="unfrozen_baseline_fixed_head_4x",
-        desc="same as unfrozen_bottleneck_fixed_head_4x, except without bottleneck",
+        title="baseline",
+        desc="baseline with 10 epochs",
         bottleneck_path=None,
         patch_size=32,
         bottleneck_dim=192,
         batch_size=128,
-        epochs=5,
+        epochs=10,
         lr=1e-4,  # not used
         freeze_body=False,
         freeze_head=False,
@@ -696,7 +710,7 @@ if __name__ == '__main__':
         pre_train_epochs=5,
     )
 
-    # finetune_unfrozen(experiment_params, device)
+    # finetune_unfrozen(experiment_params, device, parallel=True)
 
     # params = {
     #     experiment_name: "bottleneck_P32_96_finetune_heads"
