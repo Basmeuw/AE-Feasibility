@@ -28,6 +28,8 @@ def split_dataset(dataset, val_fraction=0.2):
     return train_dataset, val_dataset
 
 def prepare_dataset(params):
+
+
     if params.dataset == 'CIFAR100':
         # Load CIFAR-100 dataset
         # Data augmentation and normalization
@@ -54,7 +56,7 @@ def prepare_dataset(params):
         test_dataset = datasets.CIFAR100(root='./data', train=False,
                                          download=True, transform=test_transform)
 
-        train_dataset2, val_dataset = split_dataset(train_dataset_full, 0.1)
+        train_dataset2, val_dataset = split_dataset(train_dataset_full, params.val_fraction)
         val_dataset.dataset.transform = test_transform
 
 
@@ -80,7 +82,7 @@ def prepare_dataset(params):
         train_dataset_full = datasets.CIFAR10(root='./data', train=True, download=True)
         test_dataset = datasets.CIFAR10(root='./data', train=False, download=True, transform=test_transform)
 
-        train_dataset2, val_dataset = split_dataset(train_dataset_full, 0.1)
+        train_dataset2, val_dataset = split_dataset(train_dataset_full, params.val_fraction)
         val_dataset.dataset.transform = test_transform
 
     elif params.dataset == "TinyImageNet":
@@ -112,7 +114,7 @@ def prepare_dataset(params):
         test_dataset = datasets.ImageFolder(root=f'{data_dir}/val', transform=test_transform)
         # test_dataset = datasets.ImageFolder(root=f'{data_dir}/test', transform=test_transform)
 
-        train_dataset2, val_dataset = split_dataset(train_dataset_full, 0.1)
+        train_dataset2, val_dataset = split_dataset(train_dataset_full, params.val_fraction)
         val_dataset.dataset.transform = test_transform
 
         print(f"Tiny ImageNet loaded: {len(train_dataset2)} train, {len(val_dataset)} val samples.")
@@ -158,7 +160,7 @@ def prepare_dataset(params):
         test_dataset = test_dataset_temp  # Rename for consistency
 
         # Split the remaining 'training' portion into train and validation (e.g., 90% train / 10% val of the 80%)
-        train_dataset2, val_dataset_temp = split_dataset(train_val_dataset, 0.1)
+        train_dataset2, val_dataset_temp = split_dataset(train_val_dataset, params.val_fraction)
 
         # NOTE: Must reassign transform on the validation split's underlying dataset
         val_dataset_temp.dataset.transform = test_transform
@@ -171,7 +173,7 @@ def prepare_dataset(params):
         print("unknown dataset!!")
 
 
-    train_dataset, pretrain_dataset = split_dataset(train_dataset2, 0.2)
+    train_dataset, pretrain_dataset = split_dataset(train_dataset2, params.pre_train_fraction)
 
     pretrain_dataset, pretrain_val_dataset = split_dataset(pretrain_dataset, val_fraction=0.1)
 

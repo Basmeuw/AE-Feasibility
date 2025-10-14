@@ -2,7 +2,8 @@ class Experiment:
 
     def __init__(self, title="untitled", desc="", patch_size=16, num_classes=100, bottleneck_path=None,
                  embed_dim=768, batch_size=32,epochs = 10, lr = 1e-3, bottleneck_dim=384, freeze_head = False, freeze_body = False, freeze_embeddings = False, save_model=False,
-                 dataset = "CIFAR100", pre_train = False, pre_train_epochs = 1, pre_train_lr = 1e-3, bottleneck_finetune_lr = 1e-3, body_finetune_lr = 1e-4, min_anneal=5e-5, weight_decay=0.01):
+                 dataset = "CIFAR100", pre_train = False, pre_train_epochs = 1, pre_train_lr = 1e-3, bottleneck_finetune_lr = 1e-3, body_finetune_lr = 1e-4, min_anneal=5e-5, weight_decay=0.01,
+                 val_fraction = 0.1, pre_train_fraction = 0.0):
 
         self.title = title
         self.desc = desc
@@ -38,6 +39,8 @@ class Experiment:
         self.min_anneal = min_anneal
         self.weight_decay = weight_decay
 
+        self.val_fraction = val_fraction
+        self.pre_train_fraction = pre_train_fraction
 
 
 

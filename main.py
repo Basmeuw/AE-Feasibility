@@ -1,4 +1,3 @@
-import copy
 import json
 import os
 from datetime import datetime
@@ -6,21 +5,8 @@ from datetime import datetime
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from numpy.f2py.auxfuncs import throw_error
-from sklearn.model_selection import train_test_split
-from torch.utils.data import DataLoader, Dataset, random_split
-from torchvision import datasets, transforms
-from torchvision.models import vit_b_32, ViT_B_32_Weights, VisionTransformer, ViT_B_16_Weights
 
 from tqdm import tqdm
-from torch.utils.data import Subset
-import torch.nn.functional as F
-import numpy as np
-from params import Experiment
-
-from bottleneck import Bottleneck
-from bottleneck_vision_transformer import BottleneckVisionTransformer
-import matplotlib.pyplot as plt
 
 from plots import plot_metrics
 from prepare import prepare_original_model, prepare_dataset, prepare_bottleneck_model
@@ -152,8 +138,6 @@ def train(model, train_loader, val_loader, test_loader, criterion, optimizer, sc
         'train_accuracies': train_accuracies,
         'val_accuracies': val_accuracies,
     }, checkpoint
-
-
 
 
 # wrapper function that takes care of storing the data
