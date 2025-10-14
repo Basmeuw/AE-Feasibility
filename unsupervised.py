@@ -1,4 +1,6 @@
-
+import json
+import os
+from datetime import datetime
 
 import torch
 import torch.nn as nn
@@ -90,7 +92,7 @@ class ActivationsDataset(Dataset):
 
 
 def train_bottleneck_unsupervised(name, activations_path, device, epochs = 50, bottleneck_dim = 384):
-
+    # name = params.title
     activations = torch.load(f'processed_data/{activations_path}.pt')
     # print(activations.shape)
     # print(activations)
@@ -152,6 +154,27 @@ def train_bottleneck_unsupervised(name, activations_path, device, epochs = 50, b
     print(f"\nTraining completed! Best val loss: {best_loss:.6f}")
     # use log scale
 
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M')
+    folder_path = 'runs_unsupervised/run_{}_{}'.format(timestamp, str(768 / bottleneck_dim) + "x")
+    os.makedirs(folder_path, exist_ok=True)
+    # os.makedirs(os.path.join(folder_path, 'figures'), exist_ok=True)
+    # figure_path = os.path.join(folder_path, 'figures')
+    # Dump to JSON file
+    # with open(folder_path + '/params.json', 'w') as f:
+    #     json.dump(params_dict, f, indent=4)
+
+
+    training_data = {
+        "val_losses": val_losses,
+        "train_losses": train_losses,
+        "best_loss": best_loss,
+    }
+
+    # print(f"\nFinetuning process complete with final test accuracy: {training_data['final_test_accuracy']:.2f}%")
+
+    with open(f"{folder_path}/results.json", "w") as f:
+        json.dump(training_data, f, indent=4)
+
     plt.style.use('fivethirtyeight')
     plt.figure(figsize=(10, 6))
     plt.semilogy(train_losses, label='Training Loss', linewidth=2)  # Use log scale on y-axis
@@ -159,10 +182,10 @@ def train_bottleneck_unsupervised(name, activations_path, device, epochs = 50, b
     plt.grid(True, which="both", ls="-", alpha=0.2)
     plt.xlabel('Iterations')
     plt.ylabel('Loss (log scale)')
-    plt.title('Unsupervised Bottleneck Training Loss')
+    plt.title(f'Unsupervised Bottleneck Training Loss for {str(768 / bottleneck_dim) + "x"}, {name}', fontsize=12)
     plt.legend()
     plt.tight_layout()
-    plt.savefig(f'figures/unsupervised_bottleneck_training_loss_{bottleneck_dim}.png')
+    plt.savefig(f'{folder_path}/loss_{bottleneck_dim}.png')
     plt.show()
 
 

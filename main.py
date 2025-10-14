@@ -242,6 +242,56 @@ def prepare_dataset(params):
 
         print(f"Tiny ImageNet loaded: {len(train_dataset2)} train, {len(val_dataset)} val samples.")
 
+    elif params.dataset == "CalTech256":
+        print("Loading CalTech256 dataset...")
+        # ImageNet mean and std (re-used for consistency with TinyImageNet)
+        imagenet_mean = [0.485, 0.456, 0.406]
+        imagenet_std = [0.229, 0.224, 0.225]
+
+        # --- Data augmentation and normalization (re-using TinyImageNet transforms) ---
+        train_transform = transforms.Compose([
+            transforms.Resize(256),  # Resize shorter side to 256
+            transforms.RandomCrop(224),  # Random crop to 224×224
+            transforms.RandomHorizontalFlip(),  # Data augmentation
+            # CalTech256 contains some grayscale images, so we convert to RGB before ToTensor
+            transforms.Lambda(lambda img: img.convert('RGB') if img.mode != 'RGB' else img),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=imagenet_mean, std=imagenet_std)
+        ])
+
+        test_transform = transforms.Compose([
+            transforms.Resize(256),
+            transforms.CenterCrop(224),
+            # CalTech256 contains some grayscale images, so we convert to RGB before ToTensor
+            transforms.Lambda(lambda img: img.convert('RGB') if img.mode != 'RGB' else img),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=imagenet_mean, std=imagenet_std)
+        ])
+
+        # --- Datasets ---
+        data_dir = '/data/users/vtsouval/torch_datasets/caltech256'
+
+        # Caltech256 loads the *entire* dataset. Download=True ensures it's available.
+        full_dataset = datasets.Caltech256(root=f'{data_dir}', download=False, transform=train_transform)
+
+        # The dataset doesn't have official splits, so we'll create train, val, and test splits
+        # Split into a 'training' portion and a 'test' portion (e.g., 80% train / 20% test)
+        train_val_dataset, test_dataset_temp = split_dataset(full_dataset, 0.2)
+
+        # NOTE: CalTech256 is not intrinsically split, so we must manually assign the test_transform to the test split's underlying dataset
+        test_dataset_temp.dataset.transform = test_transform
+        test_dataset = test_dataset_temp  # Rename for consistency
+
+        # Split the remaining 'training' portion into train and validation (e.g., 90% train / 10% val of the 80%)
+        train_dataset2, val_dataset_temp = split_dataset(train_val_dataset, 0.1)
+
+        # NOTE: Must reassign transform on the validation split's underlying dataset
+        val_dataset_temp.dataset.transform = test_transform
+        val_dataset = val_dataset_temp  # Rename for consistency
+
+        print(
+            f"CalTech256 loaded and split: {len(train_dataset2)} train, {len(val_dataset)} val, {len(test_dataset)} test samples.")
+
     else:
         throw_error("unknown dataset!!")
 
@@ -295,7 +345,7 @@ def prepare_original_model(num_classes, device, parallel=False, patch_size=16):
 
     original_model.to(device)
     m = original_model.module if hasattr(original_model, "module") else original_model
-
+    # svhn, food101, cars 196, fashion mnist, euro sat
     return m
 
 def prepare_bottleneck_model(num_classes, bottleneck_dim, path, device, parallel=False, patch_size=16):
@@ -617,6 +667,80 @@ def plot_metrics(train_data, val_data, metric_name, title, save_path=None, show=
 
 seed = 42
 
+def experiment_compression_vs_accuracy_general(dataset, device):
+    num_classes = 0
+    if dataset == "CalTech256":
+        num_classes = 257
+    elif dataset == "TinyImageNet":
+        num_classes = 200
+    else:
+        print(f"Dataset {dataset} not supported.")
+        return
+
+    # BASELINE
+    retrieval_params = Experiment(
+        title=dataset,
+        desc="retrieve activations from imagenet",
+        bottleneck_path=None,
+        patch_size=32,
+        batch_size=64,
+        num_classes=num_classes,
+        dataset=dataset
+    )
+
+    bottleneck_dims = [384, 192, 96, 48]
+    bottleneck_ratios = [2, 4, 8, 16]
+
+    #
+    retrieve_activations(retrieval_params, device)
+
+    train_bottleneck_unsupervised(f"{dataset}_bottleneck_unsupervised_P32", f"activations_{dataset}", device, bottleneck_dim=48, epochs=50)
+    train_bottleneck_unsupervised(f"{dataset}_bottleneck_unsupervised_P32", f"activations_{dataset}", device, bottleneck_dim=96, epochs=50)
+    train_bottleneck_unsupervised(f"{dataset}_bottleneck_unsupervised_P32", f"activations_{dataset}", device, bottleneck_dim=192, epochs=50)
+    train_bottleneck_unsupervised(f"{dataset}_bottleneck_unsupervised_P32", f"activations_{dataset}", device, bottleneck_dim=384, epochs=50)
+
+    # # BASELINE
+    # experiment_params = Experiment(
+    #     title=f"{dataset}_baseline",
+    #     desc=f"baseline on {dataset}",
+    #     bottleneck_path=None,
+    #     patch_size=32,
+    #     batch_size=384,
+    #     epochs=10,
+    #     lr=1e-4,
+    #     freeze_body=False,
+    #     freeze_head=False,
+    #     pre_train=False,
+    #     dataset=dataset,
+    #     num_classes=num_classes,
+    # )
+    #
+    # finetune_unfrozen(experiment_params, device)
+    #
+    # chosen_ratios = [0, 1, 2, 3] # sometimes we dont want to run all of them
+    # for i in chosen_ratios:
+    #     bottleneck_dim = bottleneck_dims[i]
+    #     bottleneck_ratio = bottleneck_ratios[i]
+    #     experiment_params = Experiment(
+    #         title=f"{dataset}_bottleneck_{bottleneck_ratio}x",
+    #         desc=f"base setup with {bottleneck_ratio}x",
+    #         bottleneck_path=f"models/{dataset}_bottleneck_unsupervised_P32_{bottleneck_dim}.pth",
+    #         patch_size=32,
+    #         bottleneck_dim=bottleneck_dim,
+    #         batch_size=384,
+    #         epochs=10,
+    #         lr=1e-3,  # not used
+    #         freeze_body=False,
+    #         freeze_head=False,
+    #         freeze_embeddings=False,
+    #         dataset=dataset,
+    #         num_classes=num_classes,
+    #         pre_train=False,
+    #     )
+    #
+    #     finetune_unfrozen(experiment_params, device)
+
+
 def experiment_compression_vs_accuracy_img_net(device):
     # BASELINE
     retrieval_params = Experiment(
@@ -855,7 +979,8 @@ if __name__ == '__main__':
 
 
     # experiment_compression_vs_accuracy("CIFAR10", device)
-    experiment_compression_vs_accuracy_img_net(device)
+    # experiment_compression_vs_accuracy_img_net(device)
+    experiment_compression_vs_accuracy_general("CalTech256", device)
 
     experiment_params = Experiment(
         title="bottleneck_16x",

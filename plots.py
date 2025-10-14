@@ -154,11 +154,34 @@ def plot_final_metric_bar_chart(parent_folder, final_metric_key, title, save_pat
 # plot_metric_from_runs("useful_runs/compression_vs_acc", "val_accuracies", "Compression vs Accuracy Tradeoff", save_path="useful_runs/compression_vs_acc/results_val")
 # plot_metric_from_runs("useful_runs/compression_vs_acc", "train_accuracies", "Compression vs Accuracy Tradeoff", save_path="useful_runs/compression_vs_acc/results")
 # 1. Plot the epoch-based validation accuracy (Line Plot)
+# plot_metric_from_runs(
+#     parent_folder="useful_runs/compression_vs_acc_CalTech",
+#     metric_name="val_accuracies",
+#     title="Caltech Final Test Accuracy",
+#     save_path="useful_runs/compression_vs_acc_CalTech/results_val"
+# )
+
+# plot_metric_from_runs(
+#     parent_folder="useful_runs/compression_vs_acc_cifar10",
+#     metric_name="val_losses",
+#     title="CIFAR10 Compression vs Val Loss Tradeoff",
+#     save_path="useful_runs/compression_vs_acc_cifar10/results_val_loss"
+# )
+
+# # 2. Plot the final test accuracy (Bar Chart)
+# plot_final_metric_bar_chart(
+#     parent_folder="useful_runs/compression_vs_acc_CalTech",
+#     final_metric_key="final_test_accuracy",
+#     title="CalTech Final Test Accuracy Comparison",
+#     save_path="useful_runs/compression_vs_acc_CalTech/final_test_plot"
+# )
+
+# 1. Plot the epoch-based validation accuracy (Line Plot)
 plot_metric_from_runs(
-    parent_folder="useful_runs/compression_vs_acc_TinyImageNet",
+    parent_folder="useful_runs/compression_vs_acc_TinyImageNet10",
     metric_name="val_accuracies",
-    title="TinyImageNet Compression vs Accuracy Tradeoff",
-    save_path="useful_runs/compression_vs_acc_TinyImageNet/results_val"
+    title="TinyImageNet Final Test Accuracy",
+    save_path="useful_runs/compression_vs_acc_TinyImageNet10/results_val"
 )
 
 # plot_metric_from_runs(
@@ -170,8 +193,8 @@ plot_metric_from_runs(
 
 # 2. Plot the final test accuracy (Bar Chart)
 plot_final_metric_bar_chart(
-    parent_folder="useful_runs/compression_vs_acc_TinyImageNet",
+    parent_folder="useful_runs/compression_vs_acc_TinyImageNet10",
     final_metric_key="final_test_accuracy",
     title="TinyImageNet Final Test Accuracy Comparison",
-    save_path="useful_runs/compression_vs_acc_TinyImageNet/final_test_plot"
+    save_path="useful_runs/compression_vs_acc_TinyImageNet10/final_test_plot"
 )
