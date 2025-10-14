@@ -14,7 +14,7 @@ from tqdm import tqdm
 from bottleneck import Bottleneck
 from bottleneck_vision_transformer import BottleneckVisionTransformer
 import matplotlib.pyplot as plt
-from main import prepare_dataset, prepare_original_model, split_dataset
+from prepare import prepare_dataset, prepare_original_model, split_dataset
 from torchdistill.core.forward_hook import ForwardHookManager
 
 def retrieve_activations(params, device):

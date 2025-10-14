@@ -4,6 +4,38 @@ import os
 import numpy as np
 
 
+def plot_metrics(train_data, val_data, metric_name, title, save_path=None, show=True):
+    """
+    General function to plot training and validation metrics over epochs.
+
+    Args:
+        train_data (list): List of training metric values (e.g., loss or accuracy).
+        val_data (list): List of validation metric values.
+        metric_name (str): Name of the metric (e.g., 'Loss', 'Accuracy').
+        title (str): Title of the plot.
+        save_path (str, optional): Path to save the plot. If None, it just displays.
+    """
+    plt.figure(figsize=(10, 6))
+    epochs = range(1, len(train_data) + 1)
+
+    # Plot Training Data
+    plt.plot(epochs, train_data, 'b-o', label=f'Training {metric_name}', linewidth=2)
+    # Plot Validation Data
+    plt.plot(epochs, val_data, 'r-o', label=f'Validation {metric_name}', linewidth=2)
+
+    plt.title(title, fontsize=16, fontweight='bold')
+    plt.xlabel('Epoch', fontsize=14)
+    plt.ylabel(metric_name, fontsize=14)
+    plt.legend(fontsize=12)
+    plt.grid(True, linestyle='--', alpha=0.7)
+    plt.xticks(epochs)  # Ensure all epochs are shown on the x-axis
+
+    if save_path:
+        plt.savefig(save_path)
+        print(f"\nPlot saved to {save_path}")
+    if show:
+        plt.show()
+
 # --- Helper Function: Data Loading (Kept separate as requested) ---
 
 def load_run_data(parent_folder):
