@@ -21,7 +21,7 @@ def retrieve_activations(params, device):
     # train_loader, test_loader, pretrain_loader, pretrain_val_loader =  prepare_dataset(64)
 
 
-    _, _, _, pretrain_loader, pretrain_val_loader =  prepare_dataset(params)
+    train_loader, _, _, _, _ =  prepare_dataset(params)
 
     model = prepare_original_model(params.num_classes, device, patch_size=params.patch_size)
 
@@ -33,25 +33,7 @@ def retrieve_activations(params, device):
     all_activations = []
 
     with torch.no_grad():
-        for inputs, _ in tqdm(pretrain_loader, desc='Evaluating'):
-            inputs = inputs.to(device)
-
-            # Forward pass (hook stores activations)
-            _ = model(inputs)
-
-            io_dict = forward_hook_manager.pop_io_dict()
-            conv_out = io_dict['conv_proj']['output']  # shape: (B, hidden_dim, h, w)
-
-            B, hidden_dim, h, w = conv_out.shape
-            n_patches = h * w
-
-            # reshape to (B, n_patches, hidden_dim)
-            conv_out = conv_out.reshape(B, hidden_dim, n_patches).permute(0, 2, 1)
-
-            all_activations.append(conv_out.cpu())
-
-    with torch.no_grad():
-        for inputs, _ in tqdm(pretrain_val_loader, desc='Evaluating Val Loader'):
+        for inputs, _ in tqdm(train_loader, desc='Evaluating'):
             inputs = inputs.to(device)
 
             # Forward pass (hook stores activations)
@@ -73,7 +55,6 @@ def retrieve_activations(params, device):
     # Merge N and n_patches dimensions -> (N * n_patches, hidden_dim)
     # all_activations = all_activations.reshape(-1, all_activations.shape[-1])
 
-
     print("All activation shape", all_activations.shape)
     torch.save(all_activations.cpu(), f'processed_data/activations_{params.title}.pt')
     return all_activations  # (10000, 49, 768) for P=32
@@ -91,7 +72,7 @@ class ActivationsDataset(Dataset):
 
 
 
-def train_bottleneck_unsupervised(name, activations_path, device, epochs = 50, bottleneck_dim = 384):
+def train_bottleneck_unsupervised(data_fraction, name, activations_path, device, epochs = 50, bottleneck_dim = 384):
     # name = params.title
     activations = torch.load(f'processed_data/{activations_path}.pt')
     # print(activations.shape)
@@ -108,7 +89,7 @@ def train_bottleneck_unsupervised(name, activations_path, device, epochs = 50, b
     criterion = nn.MSELoss()
     # criterion = nn.CosineEmbeddingLoss()
     # optimizer = optim.AdamW(model.parameters(), lr=1e-4, weight_decay=1e-6)
-    optimizer = optim.AdamW(model.parameters(), lr=1e-3, weight_decay=1e-6)
+    optimizer = optim.AdamW(model.parameters(), lr=1e-3)
     scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs, eta_min=5e-5)
     train_losses = []
     val_losses = []

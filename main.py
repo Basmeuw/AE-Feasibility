@@ -8,6 +8,7 @@ import torch.optim as optim
 
 from tqdm import tqdm
 
+from params import Experiment
 from plots import plot_metrics
 from prepare import prepare_original_model, prepare_dataset, prepare_bottleneck_model
 
@@ -294,10 +295,26 @@ if __name__ == '__main__':
     # train_bottleneck_unsupervised("cifar10_bottleneck_unsupervised_P32", "activations_cifar10", device, bottleneck_dim=192, epochs=50)
     # train_bottleneck_unsupervised("cifar10_bottleneck_unsupervised_P32", "activations_cifar10", device, bottleneck_dim=384, epochs=50)
 
+    retrieval_params = Experiment(
+        title="TinyImageNet_train_all",
+        desc="retrieve activations from imagenet",
+        bottleneck_path=None,
+        patch_size=32,
+        batch_size=64,
+        num_classes=200,
+        dataset="TinyImageNet",
+    )
 
-    from experiments import experiment_compression_vs_accuracy_general
-    
-    experiment_compression_vs_accuracy_general("CalTech256", device)
+    # retrieve_activations(retrieval_params, device)
+
+    from experiments import pre_train_bottleneck, transfer_bottleneck
+
+    # pre_train_bottleneck("TinyImageNet", [192], [0.1, 0.05, 0.02, 0.01], device)
+
+    transfer_bottleneck("TinyImageNet", "CIFAR100", [192], [0.1, 0.05, 0.02, 0.01], device)
+    from experiments import experiment_compression_vs_accuracy_general, pre_train_bottleneck
+
+    # experiment_compression_vs_accuracy_general("CalTech256", device)
 
 
 

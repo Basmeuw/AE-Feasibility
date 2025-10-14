@@ -63,12 +63,14 @@ def load_run_data(parent_folder):
 
                     with open(results_file, 'r') as f:
                         results = json.load(f)
+                        val_losses = results.get('val_losses', [])
                         val_accuracies = results.get('val_accuracies', [])
                         test_accuracy = results.get('final_test_accuracy')
 
-                    if val_accuracies or test_accuracy is not None:
+                    if val_accuracies or test_accuracy or val_losses is not None:
                         run_data.append({
                             'title': run_title,
+                            'val_losses': val_losses,
                             'val_accuracies': val_accuracies,
                             'final_test_accuracy': test_accuracy
                         })

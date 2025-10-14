@@ -2,7 +2,7 @@ import copy
 
 import torch
 from torch import nn
-from torch.utils.data import random_split, DataLoader
+from torch.utils.data import random_split, DataLoader, Dataset
 from torchvision import datasets
 from torchvision.models import VisionTransformer, ViT_B_32_Weights, ViT_B_16_Weights
 from torchvision.transforms import transforms
@@ -10,9 +10,22 @@ from torchvision.transforms import transforms
 from bottleneck import Bottleneck
 from bottleneck_vision_transformer import BottleneckVisionTransformer
 
+from torch.utils.data import Dataset
+
+
+class EmptyDataset(Dataset):
+    def __init__(self):
+        self.data = []
+
+    def __len__(self):
+        return 0
+
+    def __getitem__(self, idx):
+        raise IndexError("This dataset is empty")
 
 def split_dataset(dataset, val_fraction=0.2):
 
+    if val_fraction <= 0.0: return dataset, EmptyDataset()
 
     train_size = int((1 - val_fraction) * len(dataset))  # 90% train
     val_size = len(dataset) - train_size   # 10% val
@@ -172,22 +185,28 @@ def prepare_dataset(params):
     else:
         print("unknown dataset!!")
 
+    if params.pre_train_fraction > 0.0:
+        train_dataset, pretrain_dataset = split_dataset(train_dataset2, params.pre_train_fraction)
+        pretrain_dataset, pretrain_val_dataset = split_dataset(pretrain_dataset, val_fraction=0.1)
 
-    train_dataset, pretrain_dataset = split_dataset(train_dataset2, params.pre_train_fraction)
+        pretrain_dataset.dataset.transform = train_transform
+        pretrain_val_dataset.dataset.transform = test_transform
 
-    pretrain_dataset, pretrain_val_dataset = split_dataset(pretrain_dataset, val_fraction=0.1)
+        pretrain_loader = DataLoader(pretrain_dataset, batch_size=params.batch_size, shuffle=True)
+        pretrain_val_loader = DataLoader(pretrain_val_dataset, batch_size=params.batch_size, shuffle=False)
+    else:
+        train_dataset = train_dataset2
+        pretrain_loader = None
+        pretrain_val_loader = None
 
     train_dataset.dataset.transform = train_transform
 
     # test_dataset.dataset.transform = test_transform
-    pretrain_dataset.dataset.transform = train_transform
-    pretrain_val_dataset.dataset.transform = test_transform
+
 
     train_loader = DataLoader(train_dataset, batch_size=params.batch_size, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=params.batch_size, shuffle=False)
     test_loader = DataLoader(test_dataset, batch_size=params.batch_size, shuffle=False )
-    pretrain_loader = DataLoader(pretrain_dataset, batch_size=params.batch_size, shuffle=True)
-    pretrain_val_loader = DataLoader(pretrain_val_dataset, batch_size=params.batch_size, shuffle=False)
 
 
     return train_loader, val_loader, test_loader, pretrain_loader, pretrain_val_loader
