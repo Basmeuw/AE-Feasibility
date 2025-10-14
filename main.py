@@ -9,7 +9,9 @@ from matplotlib import pyplot as plt
 
 from tqdm import tqdm
 
+from bottleneck import Bottleneck
 from params import Experiment
+
 from prepare import prepare_original_model, prepare_dataset, prepare_bottleneck_model
 
 
@@ -142,7 +144,7 @@ def train(model, train_loader, val_loader, test_loader, criterion, optimizer, sc
 
 
 # wrapper function that takes care of storing the data
-def train_and_plot(model, criterion, optimizer, scheduler, params, device, save_folder="runs"):
+def train_and_plot(model, criterion, optimizer, scheduler, params, device, save_folder):
 
     # Convert Params instance to dict
     params_dict = params.__dict__
@@ -208,7 +210,7 @@ def train_and_plot(model, criterion, optimizer, scheduler, params, device, save_
 
 
 
-def finetune(params, device, parallel=False, save_folder="runs"):
+def finetune(params, device, save_folder, parallel=False ):
     slow_lr = params.body_finetune_lr
     fast_lr = params.bottleneck_finetune_lr
     min_anneal = params.min_anneal
@@ -327,26 +329,15 @@ if __name__ == '__main__':
     # train_bottleneck_unsupervised("cifar10_bottleneck_unsupervised_P32", "activations_cifar10", device, bottleneck_dim=192, epochs=50)
     # train_bottleneck_unsupervised("cifar10_bottleneck_unsupervised_P32", "activations_cifar10", device, bottleneck_dim=384, epochs=50)
 
-    retrieval_params = Experiment(
-        title="TinyImageNet_train_all",
-        desc="retrieve activations from imagenet",
-        bottleneck_path=None,
-        patch_size=32,
-        batch_size=64,
-        num_classes=200,
-        dataset="TinyImageNet",
-    )
+
+    from experiments import transfer_bottleneck_data_fraction_full, transfer_bottleneck_data_fraction_full_self
+
+    transfer_bottleneck_data_fraction_full(device)
+    transfer_bottleneck_data_fraction_full_self(device)
 
     # retrieve_activations(retrieval_params, device)
 
-    from experiments import pre_train_bottleneck, transfer_bottleneck_data_fraction, experiment_compression_vs_accuracy_general
 
-    # pre_train_bottleneck("TinyImageNet", [192], [0.1, 0.05, 0.02, 0.01], device)
-
-    experiment_folder = "useful_runs/test"
-
-    experiment_compression_vs_accuracy_general("Food101", device, baseline_only=True, save_folder=experiment_folder)
-    # transfer_bottleneck_data_fraction("TinyImageNet", "Food101", [192], [0.1, 0.05, 0.02, 0.01], device,save_folder=experiment_folder)
 
     # transfer_bottleneck_data_fraction("TinyImageNet", "CIFAR100", [384, 192, 96, 48], [0.1], device)
     from experiments import experiment_compression_vs_accuracy_general, pre_train_bottleneck

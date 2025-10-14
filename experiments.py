@@ -1,3 +1,6 @@
+import torch
+
+from bottleneck import Bottleneck
 from main import finetune
 from params import Experiment
 from unsupervised import retrieve_activations, train_bottleneck_unsupervised
@@ -34,9 +37,6 @@ def pre_train_bottleneck(dataset, bottleneck_dims, data_fractions, device):
     )
 
     # bottleneck_dims = [384, 192, 96, 48]
-    bottleneck_dims = [192]
-
-    data_fractions = [0.1, 0.05, 0.02, 0.01]
 
 
     for bottleneck_dim in bottleneck_dims:
@@ -46,7 +46,7 @@ def pre_train_bottleneck(dataset, bottleneck_dims, data_fractions, device):
                                           bottleneck_dim=bottleneck_dim, epochs=50)
 
 # Used for the scenario where we pre-train the bottleneck on a single dataset only. Here we finetune with the generated datasets
-def transfer_bottleneck_data_fraction(pre_train_dataset, dataset, bottleneck_dims, data_fractions, device, save_folder="runs"):
+def transfer_bottleneck_data_fraction(pre_train_dataset, dataset, bottleneck_dims, data_fractions, device, save_folder):
     num_classes = get_num_classes(dataset)
 
 
@@ -61,7 +61,7 @@ def transfer_bottleneck_data_fraction(pre_train_dataset, dataset, bottleneck_dim
                 patch_size=32,
                 bottleneck_dim=bottleneck_dim,
                 batch_size=384,
-                epochs=7,
+                epochs=1,
                 lr=1e-3,  # not used
                 freeze_body=False,
                 freeze_head=False,
@@ -72,6 +72,120 @@ def transfer_bottleneck_data_fraction(pre_train_dataset, dataset, bottleneck_dim
             )
             finetune(experiment_params, device, save_folder)
 
+
+def transfer_bottleneck_data_fraction_full_self( device):
+
+    bottleneck_dims = [192]
+    data_fractions = [0.1, 0.01, 0.001]
+
+    pre_train_dataset = "Food101"
+    train_dataset = "Food101"
+
+    retrieval_params = Experiment(
+        title=f"{pre_train_dataset}",
+        desc="retrieve activations",
+        bottleneck_path=None,
+        patch_size=32,
+        batch_size=64,
+        num_classes=get_num_classes(dataset="Food101"),
+        dataset=pre_train_dataset,
+    )
+
+    retrieve_activations(retrieval_params, device)
+
+    # First pre_train the bottleneck with the possible data fractions
+    pre_train_bottleneck(pre_train_dataset, bottleneck_dims, data_fractions, device)
+
+    # # Create a randomly initialized bottleneck
+    # model = Bottleneck(768, 192)
+    # torch.save({
+    #     'model_state_dict': model.state_dict(),
+    # }, f'models/TinyImageNet_0_bottleneck_unsupervised_P32_192.pth') # HARDCODED
+
+    experiment_folder = f"useful_runs/self_transfer_data_fraction_{train_dataset}"
+
+    # experiment_compression_vs_accuracy_general("Food101", device, baseline_only=True, save_folder=experiment_folder)
+    transfer_bottleneck_data_fraction(pre_train_dataset, train_dataset, bottleneck_dims, data_fractions, device, save_folder=experiment_folder)
+
+    from plots import plot_metric_from_runs, plot_final_metric_bar_chart
+    plot_metric_from_runs(
+        parent_folder=experiment_folder,
+        metric_name="val_losses",
+        title="Food101 Self Transfer Val Losses",
+        save_path="val_loss"
+    )
+
+    plot_metric_from_runs(
+        parent_folder=experiment_folder,
+        metric_name="val_accuracies",
+        title="Food101 Self Transfer Val Accuracy",
+        save_path="val_acc"
+    )
+
+    # 2. Plot the final test accuracy (Bar Chart)
+    plot_final_metric_bar_chart(
+        parent_folder=experiment_folder,
+        final_metric_key="final_test_accuracy",
+        title="Food101 Self Transfer Final Test acc",
+        save_path="final_test"
+    )
+
+def transfer_bottleneck_data_fraction_full(device):
+    bottleneck_dims = [192]
+    data_fractions = [0.1, 0.01, 0.001, 0]
+
+    pre_train_dataset = "TinyImageNet"
+    train_dataset = "Food101"
+
+    retrieval_params = Experiment(
+        title=pre_train_dataset,
+        desc="retrieve activations",
+        bottleneck_path=None,
+        patch_size=32,
+        batch_size=64,
+        num_classes=get_num_classes(dataset="Food101"),
+        dataset=pre_train_dataset,
+    )
+
+    retrieve_activations(retrieval_params, device)
+
+    # First pre_train the bottleneck with the possible data fractions
+    pre_train_bottleneck(pre_train_dataset, bottleneck_dims, data_fractions, device)
+
+    # Create a randomly initialized bottleneck
+    model = Bottleneck(768, 192)
+    torch.save({
+        'model_state_dict': model.state_dict(),
+    }, f'models/TinyImageNet_0_bottleneck_unsupervised_P32_192.pth') # HARDCODED
+
+    experiment_folder = f"useful_runs/transfer_data_fraction_{train_dataset}_fixed_act"
+
+    # experiment_compression_vs_accuracy_general("Food101", device, baseline_only=True, save_folder=experiment_folder)
+    transfer_bottleneck_data_fraction(pre_train_dataset, train_dataset, bottleneck_dims, data_fractions, device,
+                                      save_folder=experiment_folder)
+
+    from plots import plot_metric_from_runs, plot_final_metric_bar_chart
+    plot_metric_from_runs(
+        parent_folder=experiment_folder,
+        metric_name="val_losses",
+        title="Food101 Transfer from TIN Val Losses",
+        save_path="val_loss"
+    )
+
+    plot_metric_from_runs(
+        parent_folder=experiment_folder,
+        metric_name="val_accuracies",
+        title="Food101 Transfer from TIN Val Accuracy",
+        save_path="val_acc"
+    )
+
+    # 2. Plot the final test accuracy (Bar Chart)
+    plot_final_metric_bar_chart(
+        parent_folder=experiment_folder,
+        final_metric_key="final_test_accuracy",
+        title="Food101 Transfer from TIN Final Test acc",
+        save_path="final_test"
+    )
 
 def experiment_compression_vs_accuracy_general(dataset, device, baseline_only=False, save_folder="runs"):
     num_classes = get_num_classes(dataset)

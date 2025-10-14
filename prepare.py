@@ -5,7 +5,7 @@ from torch import nn
 from torch.utils.data import random_split, DataLoader, Dataset
 from torchvision import datasets
 from torchvision.models import VisionTransformer, ViT_B_32_Weights, ViT_B_16_Weights
-from torchvision.transforms import transforms
+from torchvision import transforms
 
 from bottleneck import Bottleneck
 from bottleneck_vision_transformer import BottleneckVisionTransformer
@@ -185,7 +185,6 @@ def prepare_dataset(params):
         print("Loading Food-101 dataset...")
 
         from torchvision.datasets import Food101
-        from torchvision import transforms
 
         # Mean and std for Food-101 (computed from dataset)
         food101_mean = [0.5450, 0.4436, 0.3435]

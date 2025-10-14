@@ -87,8 +87,9 @@ def plot_metric_from_runs(parent_folder, metric_name, title, save_path=None, sho
             plt.xticks(range(1, max_epochs + 1))
 
         if save_path:
-            plt.savefig(parent_folder + "/" + save_path)
-            print(f"\nPlot saved to {save_path}")
+            path = parent_folder + "/" + save_path
+            plt.savefig(path)
+            print(f"\nPlot saved to {path}")
         if show:
             plt.show()
     else:
@@ -149,8 +150,9 @@ def plot_final_metric_bar_chart(parent_folder, final_metric_key, title, save_pat
         plt.tight_layout()
 
         if save_path:
-            plt.savefig(save_path)
-            print(f"\nBar chart saved to {save_path}")
+            path = parent_folder + "/" + save_path
+            plt.savefig(path)
+            print(f"\nPlot saved to {path}")
         if show:
             plt.show()
     else:
@@ -192,17 +194,3 @@ def plot_final_metric_bar_chart(parent_folder, final_metric_key, title, save_pat
 
 # 1. Plot the epoch-based validation accuracy (Line Plot)
 
-plot_metric_from_runs(
-    parent_folder="useful_runs/transfer_data_fraction",
-    metric_name="val_losses",
-    title="CIFAR100 Transfer From TIN Val Accuracy",
-    save_path="val_loss"
-)
-
-# 2. Plot the final test accuracy (Bar Chart)
-plot_final_metric_bar_chart(
-    parent_folder="useful_runs/transfer_data_fraction",
-    final_metric_key="final_test_accuracy",
-    title="CIFAR100 Transfer From TIN Val Accuracy",
-    save_path="final_test"
-)
