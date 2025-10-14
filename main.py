@@ -5,11 +5,11 @@ from datetime import datetime
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from matplotlib import pyplot as plt
 
 from tqdm import tqdm
 
 from params import Experiment
-from plots import plot_metrics
 from prepare import prepare_original_model, prepare_dataset, prepare_bottleneck_model
 
 
@@ -142,7 +142,7 @@ def train(model, train_loader, val_loader, test_loader, criterion, optimizer, sc
 
 
 # wrapper function that takes care of storing the data
-def train_and_plot(model, criterion, optimizer, scheduler, params, device):
+def train_and_plot(model, criterion, optimizer, scheduler, params, device, save_folder="runs"):
 
     # Convert Params instance to dict
     params_dict = params.__dict__
@@ -180,7 +180,8 @@ def train_and_plot(model, criterion, optimizer, scheduler, params, device):
     )
 
     timestamp = datetime.now().strftime('%Y%m%d_%H%M')
-    folder_path = 'runs/run_{}_{}'.format(timestamp, params.title)
+
+    folder_path = '{}/run_{}_{}'.format(save_folder, timestamp, params.title)
     os.makedirs(folder_path, exist_ok=True)
     os.makedirs(os.path.join(folder_path, 'figures'), exist_ok=True)
     figure_path = os.path.join(folder_path, 'figures')
@@ -207,7 +208,7 @@ def train_and_plot(model, criterion, optimizer, scheduler, params, device):
 
 
 
-def finetune(params, device, parallel=False):
+def finetune(params, device, parallel=False, save_folder="runs"):
     slow_lr = params.body_finetune_lr
     fast_lr = params.bottleneck_finetune_lr
     min_anneal = params.min_anneal
@@ -274,8 +275,39 @@ def finetune(params, device, parallel=False):
         ], weight_decay=params.weight_decay)
         scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=params.epochs, eta_min=min_anneal)
 
-    return train_and_plot(model, criterion, optimizer, scheduler, params, device)
+    return train_and_plot(model, criterion, optimizer, scheduler, params, device, save_folder)
 
+def plot_metrics(train_data, val_data, metric_name, title, save_path=None, show=True):
+    """
+    General function to plot training and validation metrics over epochs.
+
+    Args:
+        train_data (list): List of training metric values (e.g., loss or accuracy).
+        val_data (list): List of validation metric values.
+        metric_name (str): Name of the metric (e.g., 'Loss', 'Accuracy').
+        title (str): Title of the plot.
+        save_path (str, optional): Path to save the plot. If None, it just displays.
+    """
+    plt.figure(figsize=(10, 6))
+    epochs = range(1, len(train_data) + 1)
+
+    # Plot Training Data
+    plt.plot(epochs, train_data, 'b-o', label=f'Training {metric_name}', linewidth=2)
+    # Plot Validation Data
+    plt.plot(epochs, val_data, 'r-o', label=f'Validation {metric_name}', linewidth=2)
+
+    plt.title(title, fontsize=16, fontweight='bold')
+    plt.xlabel('Epoch', fontsize=14)
+    plt.ylabel(metric_name, fontsize=14)
+    plt.legend(fontsize=12)
+    plt.grid(True, linestyle='--', alpha=0.7)
+    plt.xticks(epochs)  # Ensure all epochs are shown on the x-axis
+
+    if save_path:
+        plt.savefig(save_path)
+        print(f"\nPlot saved to {save_path}")
+    if show:
+        plt.show()
 
 seed = 42
 
@@ -307,11 +339,16 @@ if __name__ == '__main__':
 
     # retrieve_activations(retrieval_params, device)
 
-    from experiments import pre_train_bottleneck, transfer_bottleneck
+    from experiments import pre_train_bottleneck, transfer_bottleneck_data_fraction, experiment_compression_vs_accuracy_general
 
     # pre_train_bottleneck("TinyImageNet", [192], [0.1, 0.05, 0.02, 0.01], device)
 
-    transfer_bottleneck("TinyImageNet", "CIFAR100", [192], [0.1, 0.05, 0.02, 0.01], device)
+    experiment_folder = "useful_runs/test"
+
+    experiment_compression_vs_accuracy_general("Food101", device, baseline_only=True, save_folder=experiment_folder)
+    # transfer_bottleneck_data_fraction("TinyImageNet", "Food101", [192], [0.1, 0.05, 0.02, 0.01], device,save_folder=experiment_folder)
+
+    # transfer_bottleneck_data_fraction("TinyImageNet", "CIFAR100", [384, 192, 96, 48], [0.1], device)
     from experiments import experiment_compression_vs_accuracy_general, pre_train_bottleneck
 
     # experiment_compression_vs_accuracy_general("CalTech256", device)

@@ -12,6 +12,8 @@ def get_num_classes(dataset):
         num_classes = 10
     elif dataset == "CIFAR100":
         num_classes = 100
+    elif dataset == "Food101":
+        num_classes = 101
     else:
         print(f"Dataset {dataset} not supported.")
         return -1
@@ -44,12 +46,9 @@ def pre_train_bottleneck(dataset, bottleneck_dims, data_fractions, device):
                                           bottleneck_dim=bottleneck_dim, epochs=50)
 
 # Used for the scenario where we pre-train the bottleneck on a single dataset only. Here we finetune with the generated datasets
-def transfer_bottleneck(pre_train_dataset, dataset, bottleneck_dims, data_fractions, device):
+def transfer_bottleneck_data_fraction(pre_train_dataset, dataset, bottleneck_dims, data_fractions, device, save_folder="runs"):
     num_classes = get_num_classes(dataset)
 
-    bottleneck_dims = [192]
-
-    data_fractions = [0.1, 0.05, 0.02, 0.01]
 
     for bottleneck_dim in bottleneck_dims:
         for data_fraction in data_fractions:
@@ -62,7 +61,7 @@ def transfer_bottleneck(pre_train_dataset, dataset, bottleneck_dims, data_fracti
                 patch_size=32,
                 bottleneck_dim=bottleneck_dim,
                 batch_size=384,
-                epochs=5,
+                epochs=7,
                 lr=1e-3,  # not used
                 freeze_body=False,
                 freeze_head=False,
@@ -71,12 +70,12 @@ def transfer_bottleneck(pre_train_dataset, dataset, bottleneck_dims, data_fracti
                 num_classes=num_classes,
                 pre_train=False,
             )
-            finetune(experiment_params, device)
+            finetune(experiment_params, device, save_folder)
 
 
-def experiment_compression_vs_accuracy_general(dataset, device):
+def experiment_compression_vs_accuracy_general(dataset, device, baseline_only=False, save_folder="runs"):
     num_classes = get_num_classes(dataset)
-
+    epochs = 1
     retrieval_params = Experiment(
         title=dataset,
         desc="retrieve activations from imagenet",
@@ -91,12 +90,12 @@ def experiment_compression_vs_accuracy_general(dataset, device):
     bottleneck_ratios = [2, 4, 8, 16]
 
     #
-    retrieve_activations(retrieval_params, device)
-
-    train_bottleneck_unsupervised(f"{dataset}_bottleneck_unsupervised_P32", f"activations_{dataset}", device, bottleneck_dim=48, epochs=50)
-    train_bottleneck_unsupervised(f"{dataset}_bottleneck_unsupervised_P32", f"activations_{dataset}", device, bottleneck_dim=96, epochs=50)
-    train_bottleneck_unsupervised(f"{dataset}_bottleneck_unsupervised_P32", f"activations_{dataset}", device, bottleneck_dim=192, epochs=50)
-    train_bottleneck_unsupervised(f"{dataset}_bottleneck_unsupervised_P32", f"activations_{dataset}", device, bottleneck_dim=384, epochs=50)
+    # retrieve_activations(retrieval_params, device)
+    #
+    # train_bottleneck_unsupervised(f"{dataset}_bottleneck_unsupervised_P32", f"activations_{dataset}", device, bottleneck_dim=48, epochs=50)
+    # train_bottleneck_unsupervised(f"{dataset}_bottleneck_unsupervised_P32", f"activations_{dataset}", device, bottleneck_dim=96, epochs=50)
+    # train_bottleneck_unsupervised(f"{dataset}_bottleneck_unsupervised_P32", f"activations_{dataset}", device, bottleneck_dim=192, epochs=50)
+    # train_bottleneck_unsupervised(f"{dataset}_bottleneck_unsupervised_P32", f"activations_{dataset}", device, bottleneck_dim=384, epochs=50)
 
     # BASELINE
     experiment_params = Experiment(
@@ -105,7 +104,7 @@ def experiment_compression_vs_accuracy_general(dataset, device):
         bottleneck_path=None,
         patch_size=32,
         batch_size=384,
-        epochs=10,
+        epochs=epochs,
         lr=1e-4,
         freeze_body=False,
         freeze_head=False,
@@ -114,7 +113,10 @@ def experiment_compression_vs_accuracy_general(dataset, device):
         num_classes=num_classes,
     )
 
-    finetune(experiment_params, device)
+    finetune(experiment_params, device, save_folder)
+
+    if baseline_only:
+        return
 
     chosen_ratios = [0, 1, 2, 3] # sometimes we dont want to run all of them
     for i in chosen_ratios:
@@ -127,7 +129,7 @@ def experiment_compression_vs_accuracy_general(dataset, device):
             patch_size=32,
             bottleneck_dim=bottleneck_dim,
             batch_size=384,
-            epochs=10,
+            epochs=epochs,
             lr=1e-3,  # not used
             freeze_body=False,
             freeze_head=False,
@@ -137,6 +139,6 @@ def experiment_compression_vs_accuracy_general(dataset, device):
             pre_train=False,
         )
 
-        finetune(experiment_params, device)
+        finetune(experiment_params, device, save_folder)
 
 

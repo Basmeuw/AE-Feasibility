@@ -181,6 +181,44 @@ def prepare_dataset(params):
 
         print(
             f"CalTech256 loaded and split: {len(train_dataset2)} train, {len(val_dataset)} val, {len(test_dataset)} test samples.")
+    elif params.dataset == "Food101":
+        print("Loading Food-101 dataset...")
+
+        from torchvision.datasets import Food101
+        from torchvision import transforms
+
+        # Mean and std for Food-101 (computed from dataset)
+        food101_mean = [0.5450, 0.4436, 0.3435]
+        food101_std = [0.2520, 0.2605, 0.2728]
+
+        # --- Data augmentation and normalization ---
+        train_transform = transforms.Compose([
+            transforms.Resize(256),
+            transforms.RandomCrop(224),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=food101_mean, std=food101_std)
+        ])
+
+        test_transform = transforms.Compose([
+            transforms.Resize(256),
+            transforms.CenterCrop(224),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=food101_mean, std=food101_std)
+        ])
+
+        # --- Datasets ---
+        data_dir = '/data/users/vtsouval/torch_datasets/food101'
+
+        train_dataset_full = Food101(root=data_dir, split="train", transform=train_transform, download=False)
+        test_dataset = Food101(root=data_dir, split="test", transform=test_transform, download=False)
+
+        # --- Split train into train/val ---
+        train_dataset2, val_dataset = split_dataset(train_dataset_full, params.val_fraction)
+        val_dataset.dataset.transform = test_transform
+
+        print(f"Food-101 loaded: {len(train_dataset2)} train, {len(val_dataset)} val samples.")
+
 
     else:
         print("unknown dataset!!")
@@ -204,9 +242,9 @@ def prepare_dataset(params):
     # test_dataset.dataset.transform = test_transform
 
 
-    train_loader = DataLoader(train_dataset, batch_size=params.batch_size, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=params.batch_size, shuffle=False)
-    test_loader = DataLoader(test_dataset, batch_size=params.batch_size, shuffle=False )
+    train_loader = DataLoader(train_dataset, batch_size=params.batch_size, shuffle=True, num_workers=16, pin_memory=True, persistent_workers=True)
+    val_loader = DataLoader(val_dataset, batch_size=params.batch_size, shuffle=False, num_workers=16, pin_memory=True, persistent_workers=True)
+    test_loader = DataLoader(test_dataset, batch_size=params.batch_size, shuffle=False , num_workers=8, pin_memory=True, persistent_workers=True)
 
 
     return train_loader, val_loader, test_loader, pretrain_loader, pretrain_val_loader

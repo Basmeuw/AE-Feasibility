@@ -4,37 +4,7 @@ import os
 import numpy as np
 
 
-def plot_metrics(train_data, val_data, metric_name, title, save_path=None, show=True):
-    """
-    General function to plot training and validation metrics over epochs.
 
-    Args:
-        train_data (list): List of training metric values (e.g., loss or accuracy).
-        val_data (list): List of validation metric values.
-        metric_name (str): Name of the metric (e.g., 'Loss', 'Accuracy').
-        title (str): Title of the plot.
-        save_path (str, optional): Path to save the plot. If None, it just displays.
-    """
-    plt.figure(figsize=(10, 6))
-    epochs = range(1, len(train_data) + 1)
-
-    # Plot Training Data
-    plt.plot(epochs, train_data, 'b-o', label=f'Training {metric_name}', linewidth=2)
-    # Plot Validation Data
-    plt.plot(epochs, val_data, 'r-o', label=f'Validation {metric_name}', linewidth=2)
-
-    plt.title(title, fontsize=16, fontweight='bold')
-    plt.xlabel('Epoch', fontsize=14)
-    plt.ylabel(metric_name, fontsize=14)
-    plt.legend(fontsize=12)
-    plt.grid(True, linestyle='--', alpha=0.7)
-    plt.xticks(epochs)  # Ensure all epochs are shown on the x-axis
-
-    if save_path:
-        plt.savefig(save_path)
-        print(f"\nPlot saved to {save_path}")
-    if show:
-        plt.show()
 
 # --- Helper Function: Data Loading (Kept separate as requested) ---
 
@@ -117,7 +87,7 @@ def plot_metric_from_runs(parent_folder, metric_name, title, save_path=None, sho
             plt.xticks(range(1, max_epochs + 1))
 
         if save_path:
-            plt.savefig(save_path)
+            plt.savefig(parent_folder + "/" + save_path)
             print(f"\nPlot saved to {save_path}")
         if show:
             plt.show()
@@ -195,13 +165,6 @@ def plot_final_metric_bar_chart(parent_folder, final_metric_key, title, save_pat
 #     save_path="useful_runs/compression_vs_acc_CalTech/results_val"
 # )
 
-# plot_metric_from_runs(
-#     parent_folder="useful_runs/compression_vs_acc_cifar10",
-#     metric_name="val_losses",
-#     title="CIFAR10 Compression vs Val Loss Tradeoff",
-#     save_path="useful_runs/compression_vs_acc_cifar10/results_val_loss"
-# )
-
 # # 2. Plot the final test accuracy (Bar Chart)
 # plot_final_metric_bar_chart(
 #     parent_folder="useful_runs/compression_vs_acc_CalTech",
@@ -211,24 +174,35 @@ def plot_final_metric_bar_chart(parent_folder, final_metric_key, title, save_pat
 # )
 
 # 1. Plot the epoch-based validation accuracy (Line Plot)
-plot_metric_from_runs(
-    parent_folder="useful_runs/compression_vs_acc_TinyImageNet10",
-    metric_name="val_accuracies",
-    title="TinyImageNet Final Test Accuracy",
-    save_path="useful_runs/compression_vs_acc_TinyImageNet10/results_val"
-)
-
 # plot_metric_from_runs(
-#     parent_folder="useful_runs/compression_vs_acc_cifar10",
-#     metric_name="val_losses",
-#     title="CIFAR10 Compression vs Val Loss Tradeoff",
-#     save_path="useful_runs/compression_vs_acc_cifar10/results_val_loss"
+#     parent_folder="useful_runs/compression_vs_acc_TinyImageNet10",
+#     metric_name="val_accuracies",
+#     title="TinyImageNet Final Test Accuracy",
+#     save_path="useful_runs/compression_vs_acc_TinyImageNet10/results_val"
 # )
+#
+# # 2. Plot the final test accuracy (Bar Chart)
+# plot_final_metric_bar_chart(
+#     parent_folder="useful_runs/compression_vs_acc_TinyImageNet10",
+#     final_metric_key="final_test_accuracy",
+#     title="TinyImageNet Final Test Accuracy Comparison",
+#     save_path="useful_runs/compression_vs_acc_TinyImageNet10/final_test_plot"
+# )
+
+
+# 1. Plot the epoch-based validation accuracy (Line Plot)
+
+plot_metric_from_runs(
+    parent_folder="useful_runs/transfer_data_fraction",
+    metric_name="val_losses",
+    title="CIFAR100 Transfer From TIN Val Accuracy",
+    save_path="val_loss"
+)
 
 # 2. Plot the final test accuracy (Bar Chart)
 plot_final_metric_bar_chart(
-    parent_folder="useful_runs/compression_vs_acc_TinyImageNet10",
+    parent_folder="useful_runs/transfer_data_fraction",
     final_metric_key="final_test_accuracy",
-    title="TinyImageNet Final Test Accuracy Comparison",
-    save_path="useful_runs/compression_vs_acc_TinyImageNet10/final_test_plot"
+    title="CIFAR100 Transfer From TIN Val Accuracy",
+    save_path="final_test"
 )
