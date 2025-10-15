@@ -333,7 +333,7 @@ if __name__ == '__main__':
     from experiments import transfer_bottleneck_data_fraction_full, transfer_bottleneck_data_fraction_full_self
 
     transfer_bottleneck_data_fraction_full(device)
-    transfer_bottleneck_data_fraction_full_self(device)
+    # transfer_bottleneck_data_fraction_full_self(device)
 
     # retrieve_activations(retrieval_params, device)
 

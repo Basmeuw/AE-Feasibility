@@ -61,7 +61,7 @@ def transfer_bottleneck_data_fraction(pre_train_dataset, dataset, bottleneck_dim
                 patch_size=32,
                 bottleneck_dim=bottleneck_dim,
                 batch_size=384,
-                epochs=1,
+                epochs=10,
                 lr=1e-3,  # not used
                 freeze_body=False,
                 freeze_head=False,
@@ -91,7 +91,7 @@ def transfer_bottleneck_data_fraction_full_self( device):
         dataset=pre_train_dataset,
     )
 
-    retrieve_activations(retrieval_params, device)
+    # retrieve_activations(retrieval_params, device)
 
     # First pre_train the bottleneck with the possible data fractions
     pre_train_bottleneck(pre_train_dataset, bottleneck_dims, data_fractions, device)
@@ -147,7 +147,7 @@ def transfer_bottleneck_data_fraction_full(device):
         dataset=pre_train_dataset,
     )
 
-    retrieve_activations(retrieval_params, device)
+    # retrieve_activations(retrieval_params, device)
 
     # First pre_train the bottleneck with the possible data fractions
     pre_train_bottleneck(pre_train_dataset, bottleneck_dims, data_fractions, device)

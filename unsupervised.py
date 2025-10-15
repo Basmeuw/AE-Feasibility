@@ -78,12 +78,14 @@ def train_bottleneck_unsupervised(data_fraction, name, activations_path, device,
     # print(activations.shape)
     # print(activations)
     dataset = ActivationsDataset(activations)
-    train_dataset, val_dataset = split_dataset(dataset, val_fraction=0.1)
+    used_dataset, _ = split_dataset(dataset, 1.0 -data_fraction)
+
+    train_dataset, val_dataset = split_dataset(used_dataset, val_fraction=0.1)
 
     # split into train and val
 
-    train_dataloader = DataLoader(train_dataset, batch_size=128, shuffle=True)
-    val_dataloader = DataLoader(val_dataset, batch_size=128, shuffle=False)
+    train_dataloader = DataLoader(train_dataset, batch_size=128, shuffle=True, num_workers=16, pin_memory=True, persistent_workers=True)
+    val_dataloader = DataLoader(val_dataset, batch_size=128, shuffle=False, num_workers=16, pin_memory=True, persistent_workers=True)
 
     model = Bottleneck(768, bottleneck_dim)
     criterion = nn.MSELoss()
