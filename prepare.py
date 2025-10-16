@@ -41,7 +41,9 @@ def split_dataset(dataset, val_fraction=0.2):
     return train_dataset, val_dataset
 
 def prepare_dataset(params):
-
+    # ImageNet mean and std (re-used for consistency with TinyImageNet)
+    imagenet_mean = [0.485, 0.456, 0.406]
+    imagenet_std = [0.229, 0.224, 0.225]
 
     if params.dataset == 'CIFAR100':
         # Load CIFAR-100 dataset
@@ -134,9 +136,7 @@ def prepare_dataset(params):
 
     elif params.dataset == "CalTech256":
         print("Loading CalTech256 dataset...")
-        # ImageNet mean and std (re-used for consistency with TinyImageNet)
-        imagenet_mean = [0.485, 0.456, 0.406]
-        imagenet_std = [0.229, 0.224, 0.225]
+
 
         # --- Data augmentation and normalization (re-using TinyImageNet transforms) ---
         train_transform = transforms.Compose([
@@ -217,7 +217,76 @@ def prepare_dataset(params):
         val_dataset.dataset.transform = test_transform
 
         print(f"Food-101 loaded: {len(train_dataset2)} train, {len(val_dataset)} val samples.")
+    elif params.dataset == "StanfordCars":
+        print("Loading Stanford Cars dataset...")
 
+        from torchvision.datasets import StanfordCars
+
+        # --- Data augmentation and normalization ---
+        train_transform = transforms.Compose([
+            transforms.Resize(256),
+            transforms.RandomCrop(224),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=imagenet_mean, std=imagenet_std)
+        ])
+
+        test_transform = transforms.Compose([
+            transforms.Resize(256),
+            transforms.CenterCrop(224),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=imagenet_mean, std=imagenet_std)
+        ])
+
+        # --- Datasets ---
+        data_dir = './data'
+
+        # StanfordCars returns (image, target) where target ∈ [0, 195)
+        train_dataset_full = StanfordCars(root=data_dir, split="train", transform=train_transform, download=True)
+        test_dataset = StanfordCars(root=data_dir, split="test", transform=test_transform, download=True)
+
+        # --- Split train into train/val ---
+        train_dataset2, val_dataset = split_dataset(train_dataset_full, params.val_fraction)
+        val_dataset.dataset.transform = test_transform
+
+        print(f"Stanford Cars loaded: {len(train_dataset2)} train, {len(val_dataset)} val samples.")
+    elif params.dataset == "SVHN":
+        print("Loading SVHN dataset...")
+
+        from torchvision.datasets import SVHN
+
+        # --- Data augmentation and normalization ---
+        train_transform = transforms.Compose([
+            transforms.Resize(256),
+            transforms.RandomCrop(224),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=imagenet_mean, std=imagenet_std)
+        ])
+
+        test_transform = transforms.Compose([
+            transforms.Resize(256),
+            transforms.CenterCrop(224),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=imagenet_mean, std=imagenet_std)
+        ])
+
+        data_dir = './data'
+
+        # SVHN uses split="train" and split="test" (and optionally "extra")
+        # Each image has shape (3, 32, 32), labels are 1–10 (with '10' representing digit '0')
+        train_dataset_full = SVHN(root=data_dir, split="train", transform=train_transform, download=True)
+        test_dataset = SVHN(root=data_dir, split="test", transform=test_transform, download=True)
+
+        # --- Optional: include 'extra' data for better performance ---
+        # extra_dataset = SVHN(root=data_dir, split="extra", transform=train_transform, download=True)
+        # train_dataset_full = torch.utils.data.ConcatDataset([train_dataset_full, extra_dataset])
+
+        # --- Split train into train/val ---
+        train_dataset2, val_dataset = split_dataset(train_dataset_full, params.val_fraction)
+        val_dataset.dataset.transform = test_transform
+
+        print(f"SVHN loaded: {len(train_dataset2)} train, {len(val_dataset)} val samples.")
 
     else:
         print("unknown dataset!!")

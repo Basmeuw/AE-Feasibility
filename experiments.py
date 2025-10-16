@@ -17,6 +17,10 @@ def get_num_classes(dataset):
         num_classes = 100
     elif dataset == "Food101":
         num_classes = 101
+    elif dataset == "StanfordCars":
+        num_classes = 196
+    elif dataset == "SVHN":
+        num_classes = 10
     else:
         print(f"Dataset {dataset} not supported.")
         return -1
@@ -46,7 +50,7 @@ def pre_train_bottleneck(dataset, bottleneck_dims, data_fractions, device):
                                           bottleneck_dim=bottleneck_dim, epochs=50)
 
 # Used for the scenario where we pre-train the bottleneck on a single dataset only. Here we finetune with the generated datasets
-def transfer_bottleneck_data_fraction(pre_train_dataset, dataset, bottleneck_dims, data_fractions, device, save_folder):
+def transfer_bottleneck_data_fraction(pre_train_dataset, dataset, epochs, bottleneck_dims, data_fractions, device, save_folder):
     num_classes = get_num_classes(dataset)
 
 
@@ -61,7 +65,7 @@ def transfer_bottleneck_data_fraction(pre_train_dataset, dataset, bottleneck_dim
                 patch_size=32,
                 bottleneck_dim=bottleneck_dim,
                 batch_size=384,
-                epochs=10,
+                epochs=epochs,
                 lr=1e-3,  # not used
                 freeze_body=False,
                 freeze_head=False,
@@ -187,9 +191,70 @@ def transfer_bottleneck_data_fraction_full(device):
         save_path="final_test"
     )
 
-def experiment_compression_vs_accuracy_general(dataset, device, baseline_only=False, save_folder="runs"):
+
+
+def transfer_bottleneck_data_fraction_general(experiment_folder_name, is_retrieve_activations, is_pre_train_bottleneck, is_train, include_baseline, pre_train_dataset, train_dataset, epochs, bottleneck_dims, data_fractions, device):
+
+    if is_retrieve_activations:
+        retrieval_params = Experiment(
+            title=f"{pre_train_dataset}",
+            desc="retrieve activations",
+            bottleneck_path=None,
+            patch_size=32,
+            batch_size=64,
+            num_classes=get_num_classes(dataset=pre_train_dataset),
+            dataset=pre_train_dataset,
+        )
+
+        retrieve_activations(retrieval_params, device)
+
+    if is_pre_train_bottleneck:
+        # First pre_train the bottleneck with the possible data fractions
+        pre_train_bottleneck(pre_train_dataset, bottleneck_dims, data_fractions, device)
+
+    # # Create a randomly initialized bottleneck
+    # if bottleneck_dims contains 0
+    if 0 in bottleneck_dims:
+        for bottleneck_dim in bottleneck_dims:
+            model = Bottleneck(768, bottleneck_dim)
+            torch.save({
+                'model_state_dict': model.state_dict(),
+            }, f'models/{pre_train_dataset}_0_bottleneck_unsupervised_P32_{bottleneck_dim}.pth') # HARDCODED
+
+    if include_baseline:
+        experiment_compression_vs_accuracy_general(train_dataset, device, epochs=epochs, baseline_only=True, save_folder=experiment_folder_name)
+    if is_train:
+        transfer_bottleneck_data_fraction(pre_train_dataset, train_dataset, epochs, bottleneck_dims, data_fractions, device, save_folder=experiment_folder_name)
+
+
+    from plots import plot_metric_from_runs, plot_final_metric_bar_chart
+    plot_metric_from_runs(
+        parent_folder=experiment_folder_name,
+        metric_name="val_losses",
+        title=f"{pre_train_dataset} to {train_dataset} Transfer Val Losses",
+        save_path="val_loss"
+    )
+
+    plot_metric_from_runs(
+        parent_folder=experiment_folder_name,
+        metric_name="val_accuracies",
+        title=f"{pre_train_dataset} to {train_dataset} Transfer Val Accuracy",
+        save_path="val_acc"
+    )
+
+    # 2. Plot the final test accuracy (Bar Chart)
+    plot_final_metric_bar_chart(
+        parent_folder=experiment_folder_name,
+        final_metric_key="final_test_accuracy",
+        title=f"{pre_train_dataset} to {train_dataset} Transfer Final Test acc",
+        save_path="final_test"
+    )
+
+
+
+def experiment_compression_vs_accuracy_general(dataset, device, epochs = 10, baseline_only=False, save_folder="runs"):
     num_classes = get_num_classes(dataset)
-    epochs = 10
+
     retrieval_params = Experiment(
         title=dataset,
         desc="retrieve activations from imagenet",

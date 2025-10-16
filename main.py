@@ -315,7 +315,7 @@ seed = 42
 
 if __name__ == '__main__':
     # Set device
-    device = torch.device('cuda:0'
+    device = torch.device('cuda:1'
                           '' if torch.cuda.is_available() else 'cpu')
     print(f"Using device: {device}")
 
@@ -331,14 +331,41 @@ if __name__ == '__main__':
     # train_bottleneck_unsupervised("cifar10_bottleneck_unsupervised_P32", "activations_cifar10", device, bottleneck_dim=384, epochs=50)
 
 
-    from experiments import transfer_bottleneck_data_fraction_full, transfer_bottleneck_data_fraction_full_self
+    from experiments import transfer_bottleneck_data_fraction_full, transfer_bottleneck_data_fraction_full_self, transfer_bottleneck_data_fraction_general
     #
-    # transfer_bottleneck_data_fraction_full(device)
-    transfer_bottleneck_data_fraction_full_self(device)
+    # transfer_bottleneck_data_fraction_general(
+    #     experiment_folder_name="useful_runs/transfer_data_fraction_Caltech256",
+    #     is_retrieve_activations=False,
+    #     is_pre_train_bottleneck=False,
+    #     is_train=True,
+    #     include_baseline=True,
+    #     pre_train_dataset="TinyImageNet",
+    #     train_dataset="CalTech256",
+    #     epochs=10,
+    #     bottleneck_dims=[192],
+    #     data_fractions=[0.1, 0.01, 0.001, 0],
+    #     device=device
+    # )
+
+    transfer_bottleneck_data_fraction_general(
+        experiment_folder_name="useful_runs/transfer_data_fraction_SVHN",
+        is_retrieve_activations=False,
+        is_pre_train_bottleneck=False,
+        is_train=True,
+        include_baseline=True,
+        pre_train_dataset="TinyImageNet",
+        train_dataset="SVHN",
+        epochs=10,
+        bottleneck_dims=[192],
+        data_fractions=[0.1, 0.01, 0.001, 0],
+        device=device
+    )
 
     # retrieve_activations(retrieval_params, device)
     from plots import plot_metric_from_runs, plot_final_metric_bar_chart
     experiment_folder = "useful_runs/transfer_vs_self_transfer"
+
+
     # plot_metric_from_runs(
     #     parent_folder=experiment_folder,
     #     metric_name="val_losses",
