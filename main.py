@@ -315,7 +315,8 @@ seed = 42
 
 if __name__ == '__main__':
     # Set device
-    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+    device = torch.device('cuda:0'
+                          '' if torch.cuda.is_available() else 'cpu')
     print(f"Using device: {device}")
 
     torch.manual_seed(seed)
@@ -331,17 +332,42 @@ if __name__ == '__main__':
 
 
     from experiments import transfer_bottleneck_data_fraction_full, transfer_bottleneck_data_fraction_full_self
-
-    transfer_bottleneck_data_fraction_full(device)
-    # transfer_bottleneck_data_fraction_full_self(device)
+    #
+    # transfer_bottleneck_data_fraction_full(device)
+    transfer_bottleneck_data_fraction_full_self(device)
 
     # retrieve_activations(retrieval_params, device)
+    from plots import plot_metric_from_runs, plot_final_metric_bar_chart
+    experiment_folder = "useful_runs/transfer_vs_self_transfer"
+    # plot_metric_from_runs(
+    #     parent_folder=experiment_folder,
+    #     metric_name="val_losses",
+    #     title="Self Transfer vs Transfer Val Losses",
+    #     save_path="val_loss"
+    # )
+    #
+    # plot_metric_from_runs(
+    #     parent_folder=experiment_folder,
+    #     metric_name="val_accuracies",
+    #     title="Self Transfer vs Transfer Val Accuracy",
+    #     save_path="val_acc"
+    # )
+    #
+    # # 2. Plot the final test accuracy (Bar Chart)
+    # plot_final_metric_bar_chart(
+    #     parent_folder=experiment_folder,
+    #     final_metric_key="final_test_accuracy",
+    #     title="Self Transfer vs Transfer Final Test acc",
+    #     save_path="final_test"
+    # )
+
 
 
 
     # transfer_bottleneck_data_fraction("TinyImageNet", "CIFAR100", [384, 192, 96, 48], [0.1], device)
     from experiments import experiment_compression_vs_accuracy_general, pre_train_bottleneck
 
+    # experiment_compression_vs_accuracy_general("Food101", device, baseline_only=True)
     # experiment_compression_vs_accuracy_general("CalTech256", device)
 
 

@@ -145,7 +145,7 @@ def plot_final_metric_bar_chart(parent_folder, final_metric_key, title, save_pat
 
         # Add text labels on top of the bars
         for i, val in enumerate(final_metrics):
-            plt.text(i, val * 1.01, f'{val:.2f}', ha='center', fontsize=10, fontweight='bold')
+            plt.text(i, val * 1.01, f'{val:.3f}', ha='center', fontsize=10, fontweight='bold')
 
         plt.tight_layout()
 

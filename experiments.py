@@ -94,7 +94,7 @@ def transfer_bottleneck_data_fraction_full_self( device):
     # retrieve_activations(retrieval_params, device)
 
     # First pre_train the bottleneck with the possible data fractions
-    pre_train_bottleneck(pre_train_dataset, bottleneck_dims, data_fractions, device)
+    # pre_train_bottleneck(pre_train_dataset, bottleneck_dims, data_fractions, device)
 
     # # Create a randomly initialized bottleneck
     # model = Bottleneck(768, 192)
@@ -102,10 +102,10 @@ def transfer_bottleneck_data_fraction_full_self( device):
     #     'model_state_dict': model.state_dict(),
     # }, f'models/TinyImageNet_0_bottleneck_unsupervised_P32_192.pth') # HARDCODED
 
-    experiment_folder = f"useful_runs/self_transfer_data_fraction_{train_dataset}"
+    experiment_folder = f"useful_runs/self_transfer_data_fraction_{train_dataset}_2"
 
     # experiment_compression_vs_accuracy_general("Food101", device, baseline_only=True, save_folder=experiment_folder)
-    transfer_bottleneck_data_fraction(pre_train_dataset, train_dataset, bottleneck_dims, data_fractions, device, save_folder=experiment_folder)
+    # transfer_bottleneck_data_fraction(pre_train_dataset, train_dataset, bottleneck_dims, data_fractions, device, save_folder=experiment_folder)
 
     from plots import plot_metric_from_runs, plot_final_metric_bar_chart
     plot_metric_from_runs(
@@ -132,7 +132,7 @@ def transfer_bottleneck_data_fraction_full_self( device):
 
 def transfer_bottleneck_data_fraction_full(device):
     bottleneck_dims = [192]
-    data_fractions = [0.1, 0.01, 0.001, 0]
+    data_fractions = [0.1, 0.01, 0.001]
 
     pre_train_dataset = "TinyImageNet"
     train_dataset = "Food101"
@@ -150,7 +150,7 @@ def transfer_bottleneck_data_fraction_full(device):
     # retrieve_activations(retrieval_params, device)
 
     # First pre_train the bottleneck with the possible data fractions
-    pre_train_bottleneck(pre_train_dataset, bottleneck_dims, data_fractions, device)
+    # pre_train_bottleneck(pre_train_dataset, bottleneck_dims, data_fractions[:-1], device)
 
     # Create a randomly initialized bottleneck
     model = Bottleneck(768, 192)
@@ -158,11 +158,11 @@ def transfer_bottleneck_data_fraction_full(device):
         'model_state_dict': model.state_dict(),
     }, f'models/TinyImageNet_0_bottleneck_unsupervised_P32_192.pth') # HARDCODED
 
-    experiment_folder = f"useful_runs/transfer_data_fraction_{train_dataset}_fixed_act"
+    experiment_folder = f"useful_runs/transfer_data_fraction_{train_dataset}_fixed_act_2"
 
     # experiment_compression_vs_accuracy_general("Food101", device, baseline_only=True, save_folder=experiment_folder)
-    transfer_bottleneck_data_fraction(pre_train_dataset, train_dataset, bottleneck_dims, data_fractions, device,
-                                      save_folder=experiment_folder)
+    # transfer_bottleneck_data_fraction(pre_train_dataset, train_dataset, bottleneck_dims, data_fractions, device,
+    #                                   save_folder=experiment_folder)
 
     from plots import plot_metric_from_runs, plot_final_metric_bar_chart
     plot_metric_from_runs(
@@ -189,7 +189,7 @@ def transfer_bottleneck_data_fraction_full(device):
 
 def experiment_compression_vs_accuracy_general(dataset, device, baseline_only=False, save_folder="runs"):
     num_classes = get_num_classes(dataset)
-    epochs = 1
+    epochs = 10
     retrieval_params = Experiment(
         title=dataset,
         desc="retrieve activations from imagenet",

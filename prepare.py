@@ -207,10 +207,10 @@ def prepare_dataset(params):
         ])
 
         # --- Datasets ---
-        data_dir = '/data/users/vtsouval/torch_datasets/food101'
+        data_dir = './data'
 
-        train_dataset_full = Food101(root=data_dir, split="train", transform=train_transform, download=False)
-        test_dataset = Food101(root=data_dir, split="test", transform=test_transform, download=False)
+        train_dataset_full = Food101(root=data_dir, split="train", transform=train_transform, download=True)
+        test_dataset = Food101(root=data_dir, split="test", transform=test_transform, download=True)
 
         # --- Split train into train/val ---
         train_dataset2, val_dataset = split_dataset(train_dataset_full, params.val_fraction)
