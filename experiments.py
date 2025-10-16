@@ -1,9 +1,11 @@
+import os
+
 import torch
 
-from bottleneck import Bottleneck
+from bottleneck import Bottleneck, SingleLinearBottleneck
 from main import finetune
 from params import Experiment
-from unsupervised import retrieve_activations, train_bottleneck_unsupervised
+
 
 def get_num_classes(dataset):
     num_classes = 0
@@ -27,7 +29,7 @@ def get_num_classes(dataset):
     return num_classes
 
 # Used for the scenario where we pre-train the bottleneck on a single dataset only
-def pre_train_bottleneck(dataset, bottleneck_dims, data_fractions, device):
+def pre_train_bottleneck(dataset, bottleneck_type, bottleneck_dims, data_fractions, device):
     num_classes = get_num_classes(dataset)
 
     retrieval_params = Experiment(
@@ -42,11 +44,11 @@ def pre_train_bottleneck(dataset, bottleneck_dims, data_fractions, device):
 
     # bottleneck_dims = [384, 192, 96, 48]
 
-
+    from unsupervised import  train_bottleneck_unsupervised
     for bottleneck_dim in bottleneck_dims:
         for data_fraction in data_fractions:
             print(f"Pre-training, bottleneck dim {bottleneck_dim}, data_fraction {data_fraction}, for dataset {dataset}")
-            train_bottleneck_unsupervised(data_fraction, f"{dataset}_{data_fraction}_bottleneck_unsupervised_P32", f"activations_{dataset}", device,
+            train_bottleneck_unsupervised(dataset, bottleneck_type, data_fraction, f"{dataset}_{data_fraction}_bottleneck_unsupervised_P32", f"activations_{dataset}", device,
                                           bottleneck_dim=bottleneck_dim, epochs=50)
 
 # Used for the scenario where we pre-train the bottleneck on a single dataset only. Here we finetune with the generated datasets
@@ -77,123 +79,10 @@ def transfer_bottleneck_data_fraction(pre_train_dataset, dataset, epochs, bottle
             finetune(experiment_params, device, save_folder)
 
 
-def transfer_bottleneck_data_fraction_full_self( device):
-
-    bottleneck_dims = [192]
-    data_fractions = [0.1, 0.01, 0.001]
-
-    pre_train_dataset = "Food101"
-    train_dataset = "Food101"
-
-    retrieval_params = Experiment(
-        title=f"{pre_train_dataset}",
-        desc="retrieve activations",
-        bottleneck_path=None,
-        patch_size=32,
-        batch_size=64,
-        num_classes=get_num_classes(dataset="Food101"),
-        dataset=pre_train_dataset,
-    )
-
-    # retrieve_activations(retrieval_params, device)
-
-    # First pre_train the bottleneck with the possible data fractions
-    # pre_train_bottleneck(pre_train_dataset, bottleneck_dims, data_fractions, device)
-
-    # # Create a randomly initialized bottleneck
-    # model = Bottleneck(768, 192)
-    # torch.save({
-    #     'model_state_dict': model.state_dict(),
-    # }, f'models/TinyImageNet_0_bottleneck_unsupervised_P32_192.pth') # HARDCODED
-
-    experiment_folder = f"useful_runs/self_transfer_data_fraction_{train_dataset}_2"
-
-    # experiment_compression_vs_accuracy_general("Food101", device, baseline_only=True, save_folder=experiment_folder)
-    # transfer_bottleneck_data_fraction(pre_train_dataset, train_dataset, bottleneck_dims, data_fractions, device, save_folder=experiment_folder)
-
-    from plots import plot_metric_from_runs, plot_final_metric_bar_chart
-    plot_metric_from_runs(
-        parent_folder=experiment_folder,
-        metric_name="val_losses",
-        title="Food101 Self Transfer Val Losses",
-        save_path="val_loss"
-    )
-
-    plot_metric_from_runs(
-        parent_folder=experiment_folder,
-        metric_name="val_accuracies",
-        title="Food101 Self Transfer Val Accuracy",
-        save_path="val_acc"
-    )
-
-    # 2. Plot the final test accuracy (Bar Chart)
-    plot_final_metric_bar_chart(
-        parent_folder=experiment_folder,
-        final_metric_key="final_test_accuracy",
-        title="Food101 Self Transfer Final Test acc",
-        save_path="final_test"
-    )
-
-def transfer_bottleneck_data_fraction_full(device):
-    bottleneck_dims = [192]
-    data_fractions = [0.1, 0.01, 0.001]
-
-    pre_train_dataset = "TinyImageNet"
-    train_dataset = "Food101"
-
-    retrieval_params = Experiment(
-        title=pre_train_dataset,
-        desc="retrieve activations",
-        bottleneck_path=None,
-        patch_size=32,
-        batch_size=64,
-        num_classes=get_num_classes(dataset="Food101"),
-        dataset=pre_train_dataset,
-    )
-
-    # retrieve_activations(retrieval_params, device)
-
-    # First pre_train the bottleneck with the possible data fractions
-    # pre_train_bottleneck(pre_train_dataset, bottleneck_dims, data_fractions[:-1], device)
-
-    # Create a randomly initialized bottleneck
-    model = Bottleneck(768, 192)
-    torch.save({
-        'model_state_dict': model.state_dict(),
-    }, f'models/TinyImageNet_0_bottleneck_unsupervised_P32_192.pth') # HARDCODED
-
-    experiment_folder = f"useful_runs/transfer_data_fraction_{train_dataset}_fixed_act_2"
-
-    # experiment_compression_vs_accuracy_general("Food101", device, baseline_only=True, save_folder=experiment_folder)
-    # transfer_bottleneck_data_fraction(pre_train_dataset, train_dataset, bottleneck_dims, data_fractions, device,
-    #                                   save_folder=experiment_folder)
-
-    from plots import plot_metric_from_runs, plot_final_metric_bar_chart
-    plot_metric_from_runs(
-        parent_folder=experiment_folder,
-        metric_name="val_losses",
-        title="Food101 Transfer from TIN Val Losses",
-        save_path="val_loss"
-    )
-
-    plot_metric_from_runs(
-        parent_folder=experiment_folder,
-        metric_name="val_accuracies",
-        title="Food101 Transfer from TIN Val Accuracy",
-        save_path="val_acc"
-    )
-
-    # 2. Plot the final test accuracy (Bar Chart)
-    plot_final_metric_bar_chart(
-        parent_folder=experiment_folder,
-        final_metric_key="final_test_accuracy",
-        title="Food101 Transfer from TIN Final Test acc",
-        save_path="final_test"
-    )
-
-
 
 def transfer_bottleneck_data_fraction_general(experiment_folder_name, is_retrieve_activations, is_pre_train_bottleneck, is_train, include_baseline, pre_train_dataset, train_dataset, epochs, bottleneck_dims, data_fractions, device):
+
+    bottleneck_type = "bottleneck"
 
     if is_retrieve_activations:
         retrieval_params = Experiment(
@@ -205,25 +94,27 @@ def transfer_bottleneck_data_fraction_general(experiment_folder_name, is_retriev
             num_classes=get_num_classes(dataset=pre_train_dataset),
             dataset=pre_train_dataset,
         )
-
+        from unsupervised import  retrieve_activations
         retrieve_activations(retrieval_params, device)
 
     if is_pre_train_bottleneck:
         # First pre_train the bottleneck with the possible data fractions
-        pre_train_bottleneck(pre_train_dataset, bottleneck_dims, data_fractions, device)
+        pre_train_bottleneck(pre_train_dataset, bottleneck_type, bottleneck_dims, data_fractions, device)
 
     # # Create a randomly initialized bottleneck
     # if bottleneck_dims contains 0
     if 0 in bottleneck_dims:
         for bottleneck_dim in bottleneck_dims:
-            model = Bottleneck(768, bottleneck_dim)
+            model = SingleLinearBottleneck(768, bottleneck_dim)
             torch.save({
                 'model_state_dict': model.state_dict(),
             }, f'models/{pre_train_dataset}_0_bottleneck_unsupervised_P32_{bottleneck_dim}.pth') # HARDCODED
 
-    if include_baseline:
-        experiment_compression_vs_accuracy_general(train_dataset, device, epochs=epochs, baseline_only=True, save_folder=experiment_folder_name)
+
     if is_train:
+        if include_baseline:
+            experiment_compression_vs_accuracy_general(train_dataset, device, epochs=epochs, baseline_only=True,
+                                                       save_folder=experiment_folder_name)
         transfer_bottleneck_data_fraction(pre_train_dataset, train_dataset, epochs, bottleneck_dims, data_fractions, device, save_folder=experiment_folder_name)
 
 
@@ -252,7 +143,7 @@ def transfer_bottleneck_data_fraction_general(experiment_folder_name, is_retriev
 
 
 
-def experiment_compression_vs_accuracy_general(dataset, device, epochs = 10, baseline_only=False, save_folder="runs"):
+def experiment_compression_vs_accuracy_general(pretrain_dataset, dataset, data_fraction, bottleneck_dims, epochs, bottleneck_types: list, device, baseline_only=False, save_folder="runs/test"):
     num_classes = get_num_classes(dataset)
 
     retrieval_params = Experiment(
@@ -265,9 +156,6 @@ def experiment_compression_vs_accuracy_general(dataset, device, epochs = 10, bas
         dataset=dataset
     )
 
-    bottleneck_dims = [384, 192, 96, 48]
-    bottleneck_ratios = [2, 4, 8, 16]
-
     #
     # retrieve_activations(retrieval_params, device)
     #
@@ -276,11 +164,28 @@ def experiment_compression_vs_accuracy_general(dataset, device, epochs = 10, bas
     # train_bottleneck_unsupervised(f"{dataset}_bottleneck_unsupervised_P32", f"activations_{dataset}", device, bottleneck_dim=192, epochs=50)
     # train_bottleneck_unsupervised(f"{dataset}_bottleneck_unsupervised_P32", f"activations_{dataset}", device, bottleneck_dim=384, epochs=50)
 
+    for bottleneck_type in bottleneck_types:
+        for bottleneck_dim in bottleneck_dims:
+            # check if file exists
+            file_path = f"models/{pretrain_dataset}_{bottleneck_type}_unsupervised_P32_{bottleneck_dim}.pth"
+            if not os.path.isfile(file_path):
+                print(f"File {file_path} does not exist. Pre-training now.")
+                from unsupervised import train_bottleneck_unsupervised
+                print(f"Pre-training, bottleneck dim {bottleneck_dim}, for dataset {pretrain_dataset}")
+                train_bottleneck_unsupervised(pretrain_dataset, bottleneck_type, data_fraction,
+                                              f"{pretrain_dataset}_{bottleneck_type}_unsupervised_P32", f"activations_{pretrain_dataset}",
+                                              device,
+                                              bottleneck_dim=bottleneck_dim, epochs=50)
+            else:
+                print(f"File {file_path} exists. Skipping pre-training.")
+
+
     # BASELINE
     experiment_params = Experiment(
         title=f"{dataset}_baseline",
         desc=f"baseline on {dataset}",
         bottleneck_path=None,
+        bottleneck_type="identity",
         patch_size=32,
         batch_size=384,
         epochs=epochs,
@@ -292,32 +197,54 @@ def experiment_compression_vs_accuracy_general(dataset, device, epochs = 10, bas
         num_classes=num_classes,
     )
 
-    finetune(experiment_params, device, save_folder)
+    # finetune(experiment_params, device, save_folder)
 
     if baseline_only:
         return
 
-    chosen_ratios = [0, 1, 2, 3] # sometimes we dont want to run all of them
-    for i in chosen_ratios:
-        bottleneck_dim = bottleneck_dims[i]
-        bottleneck_ratio = bottleneck_ratios[i]
-        experiment_params = Experiment(
-            title=f"{dataset}_bottleneck_{bottleneck_ratio}x",
-            desc=f"base setup with {bottleneck_ratio}x",
-            bottleneck_path=f"models/{dataset}_bottleneck_unsupervised_P32_{bottleneck_dim}.pth",
-            patch_size=32,
-            bottleneck_dim=bottleneck_dim,
-            batch_size=384,
-            epochs=epochs,
-            lr=1e-3,  # not used
-            freeze_body=False,
-            freeze_head=False,
-            freeze_embeddings=False,
-            dataset=dataset,
-            num_classes=num_classes,
-            pre_train=False,
-        )
+    for bottleneck_type in bottleneck_types:
+        for bottleneck_dim in bottleneck_dims:
+            bottleneck_ratio = 768 / bottleneck_dim
+            experiment_params = Experiment(
+                title=f"{dataset}_bottleneck_{bottleneck_ratio}x",
+                desc=f"base setup with {bottleneck_ratio}x",
+                bottleneck_path=f"models/{dataset}_{bottleneck_type}_unsupervised_P32_{bottleneck_dim}.pth",
+                patch_size=32,
+                bottleneck_type=bottleneck_type,
+                bottleneck_dim=bottleneck_dim,
+                batch_size=384,
+                epochs=epochs,
+                lr=1e-3,  # not used
+                freeze_body=False,
+                freeze_head=False,
+                freeze_embeddings=False,
+                dataset=dataset,
+                num_classes=num_classes,
+                pre_train=False,
+            )
 
-        finetune(experiment_params, device, save_folder)
+            finetune(experiment_params, device, save_folder)
 
+    from plots import plot_metric_from_runs, plot_final_metric_bar_chart
+    plot_metric_from_runs(
+        parent_folder=save_folder,
+        metric_name="val_losses",
+        title=f"{dataset} with {bottleneck_types} Val Losses",
+        save_path="val_loss"
+    )
+
+    plot_metric_from_runs(
+        parent_folder=save_folder,
+        metric_name="val_accuracies",
+        title=f"{dataset} with {bottleneck_types} Val Accuracy",
+        save_path="val_acc"
+    )
+
+    # 2. Plot the final test accuracy (Bar Chart)
+    plot_final_metric_bar_chart(
+        parent_folder=save_folder,
+        final_metric_key="final_test_accuracy",
+        title=f"{dataset} with {bottleneck_types} Transfer Final Test acc",
+        save_path="final_test"
+    )
 

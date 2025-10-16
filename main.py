@@ -12,7 +12,7 @@ from tqdm import tqdm
 from bottleneck import Bottleneck
 from params import Experiment
 
-from prepare import prepare_original_model, prepare_dataset, prepare_bottleneck_model
+from prepare import prepare_original_model, prepare_dataset, prepare_bottleneck_model, prepare_model
 
 
 # Training function
@@ -218,64 +218,96 @@ def finetune(params, device, save_folder, parallel=False ):
     print("Running experiment: ", params.title)
     print("Description: ", params.desc)
 
-    if params.bottleneck_path is not None:
-        print("Using bottleneck model")
-        model = prepare_bottleneck_model(params.num_classes, params.bottleneck_dim, params.bottleneck_path, device,
-                                         patch_size=params.patch_size, parallel=parallel)
+    use_bottleneck = params.bottleneck_path is not None
 
-        if params.freeze_body: model.freeze_except_bottleneck()
+    model = prepare_model(params, device)
 
-        # Freeze position embedding if it exists
-        if hasattr(model, 'pos_embedding'):
-            model.pos_embedding.requires_grad = not params.freeze_embeddings
+    if params.freeze_body: model.freeze_except_bottleneck()
 
-        # Freeze class token if it exists
-        if hasattr(model, 'class_token'):
-            model.class_token.requires_grad = not params.freeze_body
+    # Freeze position embedding if it exists
+    if hasattr(model, 'pos_embedding'):
+        model.pos_embedding.requires_grad = not params.freeze_embeddings
 
-        for param in model.conv_proj.parameters():
-            param.requires_grad = not params.freeze_embeddings
+    # Freeze class token if it exists
+    if hasattr(model, 'class_token'):
+        model.class_token.requires_grad = not params.freeze_body
 
-        for param in model.heads.parameters():
-            param.requires_grad = not params.freeze_head
+    for param in model.conv_proj.parameters():
+        param.requires_grad = not params.freeze_embeddings
 
-        criterion = nn.CrossEntropyLoss()
-        optimizer = torch.optim.AdamW([
-            {'params': model.conv_proj.parameters(), 'lr': slow_lr},
-            {'params': model.encoder.parameters(), 'lr': slow_lr},
-            {'params': model.bottleneck.parameters(), 'lr': fast_lr},
-            {'params': model.heads.parameters(), 'lr': fast_lr}
-        ], weight_decay=params.weight_decay)
-        scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=params.epochs, eta_min=min_anneal)
-    else:
-        print("Using original model")
-        model = prepare_original_model(params.num_classes, device, patch_size=params.patch_size, parallel=parallel)
+    for param in model.heads.parameters():
+        param.requires_grad = not params.freeze_head
 
+    criterion = nn.CrossEntropyLoss()
 
-        for param in model.conv_proj.parameters():
-            param.requires_grad = not params.freeze_embeddings
+    optimizer = torch.optim.AdamW([
+        {'params': model.conv_proj.parameters(), 'lr': slow_lr},
+        {'params': model.encoder.parameters(), 'lr': slow_lr},
+        {'params': model.bottleneck.parameters(), 'lr': fast_lr},
+        {'params': model.heads.parameters(), 'lr': fast_lr}
+    ], weight_decay=params.weight_decay)
 
-        for param in model.encoder.parameters():
-            param.requires_grad = not params.freeze_body
-
-        for param in model.heads.parameters():
-            param.requires_grad = not params.freeze_head
-
-        # Freeze position embedding if it exists
-        if hasattr(model, 'pos_embedding'):
-            model.pos_embedding.requires_grad = not params.freeze_embeddings
-
-        # Freeze class token if it exists
-        if hasattr(model, 'class_token'):
-            model.class_token.requires_grad = not params.freeze_body
-
-        criterion = nn.CrossEntropyLoss()
-        optimizer = torch.optim.AdamW([
-            {'params': model.conv_proj.parameters(), 'lr': slow_lr},
-            {'params': model.encoder.parameters(), 'lr': slow_lr},
-            {'params': model.heads.parameters(), 'lr': fast_lr}
-        ], weight_decay=params.weight_decay)
-        scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=params.epochs, eta_min=min_anneal)
+    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=params.epochs, eta_min=min_anneal)
+    #
+    #
+    # if params.bottleneck_path is not None:
+    #     print("Using bottleneck model")
+    #     model = prepare_bottleneck_model(params.num_classes, params.bottleneck_dim, params.bottleneck_path, device,
+    #                                      patch_size=params.patch_size, parallel=parallel)
+    #
+    #     if params.freeze_body: model.freeze_except_bottleneck()
+    #
+    #     # Freeze position embedding if it exists
+    #     if hasattr(model, 'pos_embedding'):
+    #         model.pos_embedding.requires_grad = not params.freeze_embeddings
+    #
+    #     # Freeze class token if it exists
+    #     if hasattr(model, 'class_token'):
+    #         model.class_token.requires_grad = not params.freeze_body
+    #
+    #     for param in model.conv_proj.parameters():
+    #         param.requires_grad = not params.freeze_embeddings
+    #
+    #     for param in model.heads.parameters():
+    #         param.requires_grad = not params.freeze_head
+    #
+    #     criterion = nn.CrossEntropyLoss()
+    #     optimizer = torch.optim.AdamW([
+    #         {'params': model.conv_proj.parameters(), 'lr': slow_lr},
+    #         {'params': model.encoder.parameters(), 'lr': slow_lr},
+    #         {'params': model.bottleneck.parameters(), 'lr': fast_lr},
+    #         {'params': model.heads.parameters(), 'lr': fast_lr}
+    #     ], weight_decay=params.weight_decay)
+    #     scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=params.epochs, eta_min=min_anneal)
+    # else:
+    #     print("Using original model")
+    #     model = prepare_original_model(params.num_classes, device, patch_size=params.patch_size, parallel=parallel)
+    #
+    #
+    #     for param in model.conv_proj.parameters():
+    #         param.requires_grad = not params.freeze_embeddings
+    #
+    #     for param in model.encoder.parameters():
+    #         param.requires_grad = not params.freeze_body
+    #
+    #     for param in model.heads.parameters():
+    #         param.requires_grad = not params.freeze_head
+    #
+    #     # Freeze position embedding if it exists
+    #     if hasattr(model, 'pos_embedding'):
+    #         model.pos_embedding.requires_grad = not params.freeze_embeddings
+    #
+    #     # Freeze class token if it exists
+    #     if hasattr(model, 'class_token'):
+    #         model.class_token.requires_grad = not params.freeze_body
+    #
+    #     criterion = nn.CrossEntropyLoss()
+    #     optimizer = torch.optim.AdamW([
+    #         {'params': model.conv_proj.parameters(), 'lr': slow_lr},
+    #         {'params': model.encoder.parameters(), 'lr': slow_lr},
+    #         {'params': model.heads.parameters(), 'lr': fast_lr}
+    #     ], weight_decay=params.weight_decay)
+    #     scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=params.epochs, eta_min=min_anneal)
 
     return train_and_plot(model, criterion, optimizer, scheduler, params, device, save_folder)
 
@@ -315,7 +347,7 @@ seed = 42
 
 if __name__ == '__main__':
     # Set device
-    device = torch.device('cuda:1'
+    device = torch.device('cuda:0'
                           '' if torch.cuda.is_available() else 'cpu')
     print(f"Using device: {device}")
 
@@ -331,7 +363,7 @@ if __name__ == '__main__':
     # train_bottleneck_unsupervised("cifar10_bottleneck_unsupervised_P32", "activations_cifar10", device, bottleneck_dim=384, epochs=50)
 
 
-    from experiments import transfer_bottleneck_data_fraction_full, transfer_bottleneck_data_fraction_full_self, transfer_bottleneck_data_fraction_general
+    from experiments import transfer_bottleneck_data_fraction_general
     #
     # transfer_bottleneck_data_fraction_general(
     #     experiment_folder_name="useful_runs/transfer_data_fraction_Caltech256",
@@ -351,7 +383,7 @@ if __name__ == '__main__':
         experiment_folder_name="useful_runs/transfer_data_fraction_SVHN",
         is_retrieve_activations=False,
         is_pre_train_bottleneck=False,
-        is_train=True,
+        is_train=False,
         include_baseline=True,
         pre_train_dataset="TinyImageNet",
         train_dataset="SVHN",
@@ -394,6 +426,15 @@ if __name__ == '__main__':
     # transfer_bottleneck_data_fraction("TinyImageNet", "CIFAR100", [384, 192, 96, 48], [0.1], device)
     from experiments import experiment_compression_vs_accuracy_general, pre_train_bottleneck
 
+    experiment_compression_vs_accuracy_general("TinyImageNet",
+                                               "CIFAR100",
+                                               0.1, [48],
+                                               device=device,
+                                               bottleneck_types=["bottleneck", "double_linear"],
+                                               epochs=7,
+                                               baseline_only=False,
+                                               save_folder="useful_runs/linear vs double_linear_CIFAR100")
+    # experiment_compression_vs_accuracy_general("TinyImageNet", "CIFAR100", device, [192, 96, 48], bottleneck_type="double_linear", epochs=7, baseline_only=False, save_folder="runs/testtt")
     # experiment_compression_vs_accuracy_general("Food101", device, baseline_only=True)
     # experiment_compression_vs_accuracy_general("CalTech256", device)
 

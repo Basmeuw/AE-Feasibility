@@ -6,12 +6,14 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, Dataset
+
+from experiments import get_num_classes
 from params import Experiment
 
 from tqdm import tqdm
 
 
-from bottleneck import Bottleneck
+from bottleneck import Bottleneck, create_bottleneck
 from bottleneck_vision_transformer import BottleneckVisionTransformer
 import matplotlib.pyplot as plt
 from prepare import prepare_dataset, prepare_original_model, split_dataset
@@ -57,6 +59,8 @@ def retrieve_activations(params, device):
 
     print("All activation shape", all_activations.shape)
     torch.save(all_activations.cpu(), f'processed_data/activations_{params.title}.pt')
+
+    del train_loader
     return all_activations  # (10000, 49, 768) for P=32
 
 
@@ -72,9 +76,26 @@ class ActivationsDataset(Dataset):
 
 
 
-def train_bottleneck_unsupervised(data_fraction, name, activations_path, device, epochs = 50, bottleneck_dim = 384):
+def train_bottleneck_unsupervised(dataset, bottleneck_type, data_fraction, name, activations_path, device, epochs = 50, bottleneck_dim = 384):
     # name = params.title
-    activations = torch.load(f'processed_data/{activations_path}.pt')
+    file_path = f'processed_data/{activations_path}.pt'
+    if not os.path.isfile(file_path):
+        print(f"File {file_path} does not exist. Retrieving activations...")
+        retrieval_params = Experiment(
+            title=dataset,
+            desc=f"retrieve activations from {dataset}",
+            bottleneck_path=None,
+            patch_size=32,
+            batch_size=64,
+            num_classes=get_num_classes(dataset),
+            dataset=dataset
+        )
+
+        activations = retrieve_activations(retrieval_params, device)
+    else:
+        activations = torch.load(file_path)
+
+
     # print(activations.shape)
     # print(activations)
     dataset = ActivationsDataset(activations)
@@ -87,7 +108,11 @@ def train_bottleneck_unsupervised(data_fraction, name, activations_path, device,
     train_dataloader = DataLoader(train_dataset, batch_size=128, shuffle=True, num_workers=16, pin_memory=True, persistent_workers=True)
     val_dataloader = DataLoader(val_dataset, batch_size=128, shuffle=False, num_workers=16, pin_memory=True, persistent_workers=True)
 
-    model = Bottleneck(768, bottleneck_dim)
+    model = create_bottleneck(
+        bottleneck_type=bottleneck_type,
+        embedding_dim=activations.shape[-1],
+        bottleneck_dim=bottleneck_dim
+    )
     criterion = nn.MSELoss()
     # criterion = nn.CosineEmbeddingLoss()
     # optimizer = optim.AdamW(model.parameters(), lr=1e-4, weight_decay=1e-6)
@@ -171,7 +196,11 @@ def train_bottleneck_unsupervised(data_fraction, name, activations_path, device,
     plt.savefig(f'{folder_path}/loss_{bottleneck_dim}.png')
     plt.show()
 
+    del train_dataloader
+    del val_dataloader
 
+    import gc
+    gc.collect()
     # # Load and evaluate best model
     # print("\nLoading best model for final evaluation...")
     # checkpoint = torch.load('best_model.pth')

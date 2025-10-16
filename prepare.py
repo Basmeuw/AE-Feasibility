@@ -7,10 +7,11 @@ from torchvision import datasets
 from torchvision.models import VisionTransformer, ViT_B_32_Weights, ViT_B_16_Weights
 from torchvision import transforms
 
-from bottleneck import Bottleneck
+from bottleneck import Bottleneck, create_bottleneck
 from bottleneck_vision_transformer import BottleneckVisionTransformer
 
 from torch.utils.data import Dataset
+import params
 
 
 class EmptyDataset(Dataset):
@@ -317,6 +318,44 @@ def prepare_dataset(params):
 
     return train_loader, val_loader, test_loader, pretrain_loader, pretrain_val_loader
 
+def prepare_model(params, device):
+    # Create any bottleneck dynamically
+
+    print(f"Creating bottleneck of type '{params.bottleneck_type}' with dim {params.bottleneck_dim}...")
+    bottleneck = create_bottleneck(
+        bottleneck_type=params.bottleneck_type,
+        bottleneck_dim=params.bottleneck_dim,
+        embedding_dim=params.embed_dim,
+    )
+    if params.bottleneck_type != "identity":
+        # Check if file exists at save path
+        import os
+        if not os.path.isfile(params.bottleneck_path):
+            raise FileNotFoundError(f"Bottleneck weights not found at {params.bottleneck_path}. Please pre-train the bottleneck first.")
+
+        # 2. Load pretrained weights
+        saved_model = torch.load(params.bottleneck_path, map_location=device)
+
+        bottleneck.load_state_dict(saved_model['model_state_dict'])
+
+    model = BottleneckVisionTransformer(bottleneck,
+                                       image_size=224,
+                                       patch_size=params.patch_size,
+                                       num_layers=12,
+                                       num_heads=12,
+                                       hidden_dim=768,
+                                       mlp_dim=3072,
+                                       num_classes=1000,
+                                       )
+
+    if params.patch_size == 32:
+        model.load_pretrained_weights(ViT_B_32_Weights.IMAGENET1K_V1)
+    elif params.patch_size == 16:
+        model.load_pretrained_weights(ViT_B_16_Weights.IMAGENET1K_V1)
+
+    model.heads = nn.Linear(model.heads[0].in_features, params.num_classes)
+    return model.to(device)
+
 def prepare_original_model(num_classes, device, parallel=False, patch_size=16):
     # Load pre-trained Vision Transformer B/32 (4x faster than B/16)
     print(f"\nLoading pre-trained Vision Transformer (ViT-B/{16})...")
@@ -352,7 +391,9 @@ def prepare_original_model(num_classes, device, parallel=False, patch_size=16):
 
 def prepare_bottleneck_model(num_classes, bottleneck_dim, path, device, parallel=False, patch_size=16):
     # 1. Recreate architecture
-    bottleneck = Bottleneck(embedding_dim=768, bottleneck_dim=bottleneck_dim)
+
+    from bottleneck import SingleLinearBottleneck
+    bottleneck = SingleLinearBottleneck(embedding_dim=768, bottleneck_dim=bottleneck_dim)
 
     # 2. Load pretrained weights
     saved_model = torch.load(path, map_location=device)
